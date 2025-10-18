@@ -61,7 +61,7 @@
                     <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
                     <div class="relative">
                         <input type="password" id="password" name="password"
-                               placeholder="••••••••" required
+                               placeholder="Enter Password" required
                                class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 pr-10">
                         <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700">
                             <!-- Eye icon will be inserted here by JavaScript -->
@@ -74,7 +74,7 @@
                     <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
                     <div class="relative">
                         <input type="password" id="confirm_password" name="confirm_password"
-                               placeholder="••••••••" required
+                               placeholder="Confirm Password" required
                                class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 pr-10">
                         <button type="button" id="toggleConfirmPassword" class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700">
                            <!-- Eye icon will be inserted here by JavaScript -->
