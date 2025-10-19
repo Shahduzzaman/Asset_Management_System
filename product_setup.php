@@ -1,13 +1,35 @@
 <?php
-// Start the session and check if the user is logged in
 session_start();
+
+// --- START: SESSION IDLE TIMEOUT LOGIC ---
+$idleTimeout = 20; // Set timeout duration in seconds
+
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $idleTimeout)) {
+    session_unset();
+    session_destroy();
+    header("Location: index.php?reason=idle"); // Redirect to index.php
+    exit();
+}
+$_SESSION['last_activity'] = time();
+// --- END: SESSION IDLE TIMEOUT LOGIC ---
+
+// This check must come *after* the idle timeout logic
 if (!isset($_SESSION["user_id"])) {
-    header("Location: login.php");
+    header("Location: index.php"); // Redirect to index.php
     exit();
 }
 
-// Include the database connection
 require_once 'connection.php';
+
+// --- Handle Keep-Alive Ping from client-side ---
+if (isset($_GET['action']) && $_GET['action'] === 'keep_alive') {
+    // The session activity time is already updated by the logic at the top of the file.
+    // We just need to send a success response to the JavaScript fetch request.
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'success']);
+    exit();
+}
+
 
 // --- Part 1: Handle API requests for dynamic dropdowns ---
 // This part of the code responds to JavaScript fetch requests
@@ -242,6 +264,33 @@ $conn->close();
         </div>
     </div>
 
+
+    <!-- Modal backdrop -->
+    <div id="session-timeout-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <!-- Modal content -->
+        <div class="bg-white rounded-lg shadow-xl p-6 md:p-8 w-11/12 max-w-md text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+                <!-- Warning Icon -->
+                <svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-800">Session Expiring Soon</h3>
+            <p class="text-gray-600 mt-2">
+                You will be logged out due to inactivity.
+            </p>
+            <p class="text-gray-500 text-sm mt-4">
+                Redirecting in <span id="redirect-countdown" class="font-semibold">10</span> seconds...
+            </p>
+            <div class="mt-6">
+                <button id="stay-logged-in-btn" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Stay Logged In
+                </button>
+            </div>
+        </div>
+    </div>
+
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     // --- Element References ---
@@ -359,7 +408,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     }
 });
+
+    // --- Session Timeout Logic ---
+    (function() {
+        // Get references to modal elements
+        const sessionModal = document.getElementById('session-timeout-modal');
+        const stayLoggedInBtn = document.getElementById('stay-logged-in-btn');
+        const countdownElement = document.getElementById('redirect-countdown');
+
+        // Get the timeout duration from the PHP variable
+        const idleTimeout = <?php echo $idleTimeout; ?> * 1000; // Convert to milliseconds
+        const redirectDelay = 10000; // 10 seconds for the countdown
+        
+        let timeoutId;
+        let countdownInterval;
+
+        // Function to show the modal and start the final countdown
+        function showTimeoutModal() {
+            sessionModal.classList.remove('hidden');
+            
+            let countdown = redirectDelay / 1000;
+            countdownElement.textContent = countdown;
+            
+            countdownInterval = setInterval(() => {
+                countdown--;
+                countdownElement.textContent = countdown;
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    window.location.href = 'logout.php?reason=idle';
+                }
+            }, 1000);
+        }
+
+        // Function to start or restart the idle timer
+        function startTimer() {
+            clearTimeout(timeoutId); // Clear any existing timer
+            // Set a new timer to show the modal just before the session expires
+            timeoutId = setTimeout(showTimeoutModal, idleTimeout - redirectDelay);
+        }
+
+        // Event listener for the "Stay Logged In" button
+        stayLoggedInBtn.addEventListener('click', async () => {
+            // Stop the redirect countdown and hide the modal
+            clearInterval(countdownInterval);
+            sessionModal.classList.add('hidden');
+
+            // Ping the server to keep the session alive
+            try {
+                await fetch('product_setup.php?action=keep_alive');
+                // If the ping is successful, restart the client-side timer
+                startTimer();
+            } catch (error) {
+                console.error('Failed to extend session:', error);
+                // If the ping fails, log out immediately as the session might already be dead
+                window.location.href = 'logout.php?reason=idle';
+            }
+        });
+
+        // Start the initial timer when the page loads
+        startTimer();
+    })();
 </script>
 
 </body>
 </html>
+

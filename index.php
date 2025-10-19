@@ -8,13 +8,20 @@ if (isset($_SESSION["user_id"])) {
     exit();
 }
 
+$errorMessage = ''; // Initialize error message
+// Check for a logout reason in the URL query string
+$reason = $_GET['reason'] ?? '';
+if ($reason === 'idle') {
+    $errorMessage = "Your session has expired due to inactivity. Please log in again.";
+}
+
+
 // Check if the form has been submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Include the database connection file
     require_once 'connection.php';
 
     // Get email and password from the form
-    // Assuming the 'username' field is used for email
     $email = $_POST['username']; 
     $password = $_POST['password'];
 
@@ -46,6 +53,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     session_regenerate_id(); // Prevents session fixation attacks
                     $_SESSION["user_id"] = $user_id;
                     $_SESSION["user_name"] = $user_name;
+                    $_SESSION['last_activity'] = time(); // Start the session timer
                     
                     // Redirect to a protected dashboard page
                     header("Location: dashboard.php");
@@ -63,7 +71,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Close the statement
         $stmt->close();
     } else {
-        $errorMessage = "An error occurred. Please try again later.";
+        // If an error message isn't already set, provide a generic one
+        if (empty($errorMessage)) {
+             $errorMessage = "An error occurred. Please try again later.";
+        }
     }
     
     // Close the connection
@@ -100,7 +111,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
 
         <!-- Display Error Message -->
-        <?php if (isset($errorMessage)): ?>
+        <?php if (!empty($errorMessage)): ?>
             <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6 text-center" role="alert">
                 <span class="block sm:inline"><?php echo htmlspecialchars($errorMessage); ?></span>
             </div>
@@ -151,6 +162,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <script>
+        // --- Password Visibility Toggle ---
         const passwordInput = document.getElementById('password');
         const togglePasswordButton = document.getElementById('togglePassword');
         const eyeIcon = document.getElementById('eyeIcon');
@@ -164,6 +176,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Toggle the icon visibility
             eyeIcon.classList.toggle('hidden');
             eyeOffIcon.classList.toggle('hidden');
+        });
+
+        // --- Remove Error Message on Reload ---
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if the 'reason' parameter exists in the URL
+            if (window.location.search.includes('reason=')) {
+                // If it exists, replace the current URL with a clean one without the parameter
+                const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                window.history.replaceState({path: cleanUrl}, '', cleanUrl);
+            }
         });
     </script>
 
