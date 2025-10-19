@@ -1,3 +1,69 @@
+<?php
+// Start the session
+session_start();
+
+// Check if the user is logged in, otherwise redirect to the login page
+if (!isset($_SESSION["user_id"])) {
+    header("Location: login.php");
+    exit();
+}
+
+// --- PHP Form Processing Logic ---
+
+// Check if the form has been submitted using the POST method
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    
+    // 1. Include the database connection file
+    require_once 'connection.php'; // This connects to the database
+
+    // 2. Retrieve form data
+    $user_name = $_POST['user_name'];
+    $email = $_POST['email'];
+    $phone = $_POST['phone'];
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+    $created_by = $_SESSION['user_id']; // Get the logged-in user's ID
+
+    // Basic server-side validation
+    if ($password !== $confirm_password) {
+        $errorMessage = "Passwords do not match!";
+    } else {
+        // 3. Hash the password for secure storage
+        $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+        // 4. Prepare the SQL INSERT statement to prevent SQL injection
+        $sql = "INSERT INTO users (user_name, email, phone, password_hash, created_by) VALUES (?, ?, ?, ?, ?)";
+        
+        $stmt = $conn->prepare($sql);
+        
+        if ($stmt) {
+            // 5. Bind parameters to the prepared statement
+            // 'ssssi' means the params are string, string, string, string, integer
+            $stmt->bind_param("ssssi", $user_name, $email, $phone, $password_hash, $created_by);
+            
+            // 6. Execute the statement and check for success
+            if ($stmt->execute()) {
+                $successMessage = "New user created successfully!";
+            } else {
+                // Check if it's a duplicate email error
+                if ($conn->errno == 1062) { // 1062 is the MySQL error code for duplicate entry
+                    $errorMessage = "Error: This email address is already registered.";
+                } else {
+                    $errorMessage = "Error: " . $stmt->error;
+                }
+            }
+            
+            // Close the statement
+            $stmt->close();
+        } else {
+            $errorMessage = "Error preparing statement: " . $conn->error;
+        }
+        
+        // Close the database connection
+        $conn->close();
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,20 +83,41 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
 
     <!-- Form Container -->
     <main class="w-full max-w-lg p-4 sm:p-8">
         <div class="bg-white rounded-2xl shadow-xl p-8">
             
+            <!-- Back to Dashboard Link -->
+            <div class="text-left mb-6">
+                <a href="dashboard.php" class="text-indigo-600 hover:text-indigo-800 font-medium transition duration-200">
+                    &larr; Back to Dashboard
+                </a>
+            </div>
+
             <!-- Header -->
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-800">Create New User</h1>
                 <p class="text-gray-500 mt-2">Please fill out the form to add a new user.</p>
             </div>
 
+            <!-- Display Success or Error Messages -->
+            <?php if (isset($successMessage)): ?>
+                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+                    <strong class="font-bold">Success!</strong>
+                    <span class="block sm:inline"><?php echo $successMessage; ?></span>
+                </div>
+            <?php endif; ?>
+            <?php if (isset($errorMessage)): ?>
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+                    <strong class="font-bold">Error!</strong>
+                    <span class="block sm:inline"><?php echo $errorMessage; ?></span>
+                </div>
+            <?php endif; ?>
+
             <!-- User Form -->
-            <form action="#" method="POST" class="space-y-6">
+            <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="POST" class="space-y-6">
                 
                 <!-- User Name Input -->
                 <div>
@@ -52,7 +139,7 @@
                 <div>
                     <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                     <input type="tel" id="phone" name="phone"
-                           placeholder="+880 12 3456 7890" required
+                           placeholder="+880 12 3456 7890"
                            class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">
                 </div>
                 
@@ -112,25 +199,26 @@
             const passwordInput = document.getElementById(inputId);
             const toggleButton = document.getElementById(toggleId);
             
-            // Set initial icon
-            toggleButton.innerHTML = eyeIconSvg;
+            if (toggleButton) {
+                // Set initial icon
+                toggleButton.innerHTML = eyeIconSvg;
 
-            toggleButton.addEventListener('click', () => {
-                if (passwordInput.type === 'password') {
-                    passwordInput.type = 'text';
-                    toggleButton.innerHTML = eyeSlashIconSvg;
-                } else {
-                    passwordInput.type = 'password';
-                    toggleButton.innerHTML = eyeIconSvg;
-                }
-            });
+                toggleButton.addEventListener('click', () => {
+                    if (passwordInput.type === 'password') {
+                        passwordInput.type = 'text';
+                        toggleButton.innerHTML = eyeSlashIconSvg;
+                    } else {
+                        passwordInput.type = 'password';
+                        toggleButton.innerHTML = eyeIconSvg;
+                    }
+                });
+            }
         }
 
         setupPasswordToggle('password', 'togglePassword');
         setupPasswordToggle('confirm_password', 'toggleConfirmPassword');
 
-
-        // --- Form Submission Validation ---
+        // --- Client-Side Form Submission Validation ---
         const form = document.querySelector('form');
         const passwordError = document.getElementById('password-error');
 
@@ -138,11 +226,12 @@
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirm_password').value;
 
+            // Clear previous error message
+            passwordError.textContent = "";
+
             if (password !== confirmPassword) {
                 event.preventDefault(); // Prevent form submission
                 passwordError.textContent = "Passwords do not match!";
-            } else {
-                passwordError.textContent = "";
             }
         });
     </script>
