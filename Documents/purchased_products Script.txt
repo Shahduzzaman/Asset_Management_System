@@ -1,0 +1,47 @@
+-- =================================================================
+--  ADDITIONAL SCRIPT FOR RETURN_PRODUCTS
+-- =================================================================
+-- This script adds the 'return_products' table to the existing
+-- database to log items returned to vendors.
+-- =================================================================
+
+-- -----------------------------------------------------------------
+--  TABLE CREATION - return_products
+-- -----------------------------------------------------------------
+-- Stores information about products returned to vendors.
+-- (Based on user request for 'Return_Prtoduct')
+
+CREATE TABLE return_products (
+    return_id INT PRIMARY KEY AUTO_INCREMENT,       -- Corresponds to 'PK (Auto Increament)'
+    vendor_id INT NOT NULL,                         -- Corresponds to 'Vendor_Name FK', references vendors.vendor_id
+    purchase_date DATE,                             -- Corresponds to 'Purchased_Date'
+    return_date DATE,                               -- Corresponds to 'Return_Date'
+    invoice_number VARCHAR(255),                    -- Corresponds to 'Purchased_Invoice'
+    category_id INT NOT NULL,                       -- Corresponds to 'Category FK'
+    brand_id INT NOT NULL,                          -- Corresponds to 'Brand_FK'
+    model_id INT NOT NULL,                          -- Corresponds to 'Model_FK'
+    quantity INT NOT NULL,                          -- Corresponds to 'Product Quantitry'
+    unit_price DECIMAL(10, 2) NOT NULL,             -- Corresponds to 'Unit Price'
+    warranty_period VARCHAR(100),                   -- Corresponds to 'Warrenty'
+    serial_number VARCHAR(255),                     -- Corresponds to 'Purchased_Product_Serial Number'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- Corresponds to 'created date'
+    created_by INT,                                 -- Corresponds to 'created_by (user_ID-FK)'
+    is_updated BOOLEAN DEFAULT FALSE,               -- Corresponds to 'is_updated (Binary value)'
+    is_deleted BOOLEAN DEFAULT FALSE                -- Corresponds to 'is_deleted (Binary value)'
+);
+
+
+-- -----------------------------------------------------------------
+--  FOREIGN KEY CONSTRAINTS - return_products
+-- -----------------------------------------------------------------
+-- Constraints are added after the table is created.
+
+ALTER TABLE return_products ADD CONSTRAINT fk_return_vendor FOREIGN KEY (vendor_id) REFERENCES vendors(vendor_id);
+ALTER TABLE return_products ADD CONSTRAINT fk_return_category FOREIGN KEY (category_id) REFERENCES categories(category_id);
+ALTER TABLE return_products ADD CONSTRAINT fk_return_brand FOREIGN KEY (brand_id) REFERENCES brands(brand_id);
+ALTER TABLE return_products ADD CONSTRAINT fk_return_model FOREIGN KEY (model_id) REFERENCES models(model_id);
+ALTER TABLE return_products ADD CONSTRAINT fk_return_created_by FOREIGN KEY (created_by) REFERENCES users(user_id);
+
+-- =================================================================
+--  End of Script
+-- =================================================================

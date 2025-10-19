@@ -1,6 +1,4 @@
 -- =================================================================
---  Database Schema from Excel Requirements
--- =================================================================
 --  This script creates tables for an inventory or asset management
 --  system. The tables are created first, and then foreign key
 --  constraints are added to prevent ordering issues.
