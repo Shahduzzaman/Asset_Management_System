@@ -28,7 +28,7 @@ $user_name = htmlspecialchars($_SESSION["user_name"]);
     <main class="w-full max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg text-center">
         
         <!-- Header -->
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">Product Management Portal</h1>
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">Asset Management System</h1>
         <p class="text-gray-600 mb-8">Welcome, <span class="font-semibold"><?php echo $user_name; ?></span>!</p>
 
         <!-- Button Container -->
