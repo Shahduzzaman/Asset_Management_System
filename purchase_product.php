@@ -162,6 +162,7 @@ $conn->close();
         <?php if ($successMessage): ?><div id="alert-box" class="bg-green-100 border-green-400 text-green-700 px-4 py-3 rounded-lg mb-6"><strong>Success!</strong> <span><?php echo htmlspecialchars($successMessage); ?></span></div><?php endif; ?>
         <?php if ($errorMessage): ?><div id="alert-box" class="bg-red-100 border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6"><strong>Error!</strong> <span><?php echo htmlspecialchars($errorMessage); ?></span></div><?php endif; ?>
         
+        <!-- Section 1: Main Purchase Information -->
         <div class="bg-white p-6 rounded-xl shadow-md mb-8">
             <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">Main Purchase Information</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -174,7 +175,27 @@ $conn->close();
             </div>
         </div>
 
-        <div id="temp-list-container" class="bg-white p-6 rounded-xl shadow-md mb-8 <?php echo empty($temp_items)?'hidden':'';?>">
+        <!-- Section 2: Product Entry Form (NEW POSITION) -->
+        <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+            <div class="flex justify-between items-center mb-4 border-b pb-2"><h2 class="text-xl font-semibold text-gray-700">Add a Product</h2><button type="button" id="add-hierarchy-btn" class="text-xs bg-blue-500 text-white px-2 py-1 rounded-md hover:bg-blue-600">Add Category/Brand/Model</button></div>
+            <div id="product-entry-form" class="p-4 border rounded-lg bg-gray-50 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div><label class="block text-sm font-medium">Category</label><select id="category_id" class="mt-1 w-full p-2 border-gray-300 rounded-md"><option value="">-- Select --</option><?php foreach($categories as $cat):?><option value="<?php echo $cat['category_id'];?>"><?php echo htmlspecialchars($cat['category_name']);?></option><?php endforeach;?></select></div>
+                    <div><label class="block text-sm font-medium">Brand</label><select id="brand_id" class="mt-1 w-full p-2 border-gray-300 rounded-md" disabled><option>-- Select Category --</option></select></div>
+                    <div><label class="block text-sm font-medium">Model</label><select id="model_id" class="mt-1 w-full p-2 border-gray-300 rounded-md" disabled><option>-- Select Brand --</option></select></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div><label class="block text-sm font-medium">Quantity</label><input type="number" id="quantity" placeholder="1" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
+                    <div><label class="block text-sm font-medium">Unit Price</label><input type="number" step="0.01" id="unit_price" placeholder="0.00" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
+                    <div><label class="block text-sm font-medium">Warranty</label><input type="text" id="warranty_period" placeholder="e.g., 1 Year" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
+                </div>
+                <div><label class="block text-sm font-medium">Serial Number(s)</label><input type="text" id="serial_number" placeholder="Optional. For multiple, separate with commas." class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
+                <div class="text-right"><button type="button" id="add-product-to-list-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700">Add Product to List</button></div>
+            </div>
+        </div>
+
+        <!-- Section 3: Temporary Product List (NEW POSITION) -->
+        <div id="temp-list-container" class="bg-white p-6 rounded-xl shadow-md <?php echo empty($temp_items)?'hidden':'';?>">
             <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">Products in Current List</h2>
             <div class="overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50"><tr><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Serial</th><th class="px-2 py-2"></th></tr></thead><tbody id="temp-product-tbody" class="divide-y divide-gray-200">
                 <?php foreach($temp_items as $item):?>
@@ -191,32 +212,14 @@ $conn->close();
                 <?php endforeach;?>
             </tbody></table></div>
         </div>
-
-        <div class="bg-white p-6 rounded-xl shadow-md"><div class="flex justify-between items-center mb-4 border-b pb-2"><h2 class="text-xl font-semibold text-gray-700">Add a Product</h2><button type="button" id="add-hierarchy-btn" class="text-sm bg-gray-200 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-300">Add Category/Brand/Model</button></div>
-            <div id="product-entry-form" class="p-4 border rounded-lg bg-gray-50 space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div><label class="block text-sm font-medium">Category</label><select id="category_id" class="mt-1 w-full p-2 border-gray-300 rounded-md"><option value="">-- Select --</option><?php foreach($categories as $cat):?><option value="<?php echo $cat['category_id'];?>"><?php echo htmlspecialchars($cat['category_name']);?></option><?php endforeach;?></select></div>
-                    <div><label class="block text-sm font-medium">Brand</label><select id="brand_id" class="mt-1 w-full p-2 border-gray-300 rounded-md" disabled><option>-- Select Category --</option></select></div>
-                    <div><label class="block text-sm font-medium">Model</label><select id="model_id" class="mt-1 w-full p-2 border-gray-300 rounded-md" disabled><option>-- Select Brand --</option></select></div>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div><label class="block text-sm font-medium">Quantity</label><input type="number" id="quantity" placeholder="1" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
-                    <div><label class="block text-sm font-medium">Unit Price</label><input type="number" step="0.01" id="unit_price" placeholder="0.00" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
-                    <div><label class="block text-sm font-medium">Warranty</label><input type="text" id="warranty_period" placeholder="e.g., 1 Year" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
-                </div>
-                <div><label class="block text-sm font-medium">Serial Number(s)</label><input type="text" id="serial_number" placeholder="Optional. For multiple, separate with commas." class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
-                <div class="text-right"><button type="button" id="add-product-to-list-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700">Add Product to List</button></div>
-            </div>
-        </div>
         
+        <!-- Final Submit Button -->
         <div class="mt-8 text-right"><button type="button" id="final-submit-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700 text-lg">Submit Full Purchase</button></div>
     </div>
 
     <!-- Modals -->
     <div id="page-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-40"><div class="bg-white rounded-lg shadow-xl w-11/12 max-w-4xl h-5/6 flex flex-col"><div class="p-4 border-b flex justify-between items-center"><h3 id="modal-title" class="text-xl font-semibold"></h3><button id="modal-close-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div><iframe id="modal-iframe" class="w-full h-full border-0"></iframe></div></div>
-    
     <div id="edit-product-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50"><div class="bg-white rounded-lg shadow-xl w-11/12 max-w-2xl flex flex-col p-6 space-y-4"><h2 class="text-xl font-semibold">Edit Product</h2><input type="hidden" id="edit-temp-id"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label class="block text-sm">Category</label><select id="edit-category_id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div><div><label class="block text-sm">Brand</label><select id="edit-brand_id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div><div><label class="block text-sm">Model</label><select id="edit-model_id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-4"><div><label class="block text-sm">Quantity</label><input type="number" id="edit-quantity" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div><label class="block text-sm">Unit Price</label><input type="number" step="0.01" id="edit-unit_price" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div><label class="block text-sm">Warranty</label><input type="text" id="edit-warranty_period" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div></div><div><label class="block text-sm">Serial(s)</label><input type="text" id="edit-serial_number" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div class="flex justify-end gap-4"><button type="button" id="edit-cancel-btn" class="bg-gray-300 px-4 py-2 rounded-lg">Cancel</button><button type="button" id="edit-update-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg">Update Product</button></div></div></div>
-    
     <div id="final-confirmation-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50"><div class="bg-white rounded-lg shadow-xl w-11/12 max-w-3xl flex flex-col p-6"><h2 class="text-2xl font-bold mb-4">Confirm Purchase Submission</h2><div class="grid grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 rounded-lg border text-sm"><p><strong>Vendor:</strong> <span id="confirm-vendor"></span></p><p><strong>Date:</strong> <span id="confirm-date"></span></p><p><strong>Invoice #:</strong> <span id="confirm-invoice"></span></p></div><div class="overflow-y-auto max-h-80 border rounded-lg"><table class="min-w-full"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Price</th></tr></thead><tbody id="confirmation-list" class="divide-y"></tbody></table></div><div class="flex justify-end gap-4 mt-6"><button type="button" id="confirm-cancel-btn" class="bg-gray-300 px-6 py-2 rounded-lg">Cancel</button><form id="final-purchase-form" method="POST"><input type="hidden" name="submit_purchase" value="1"><button type="submit" class="bg-green-600 text-white font-bold px-6 py-2 rounded-lg">Confirm & Save</button></form></div></div></div>
 
 <script>
@@ -253,10 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`?action=get_lists&list=brands&category_id=${catSelect.value}`);
             const { data } = await res.json();
             populateSelect(brandSelect, data, 'brand_id', 'brand_name');
-            if (details.brand_id && catSelect.value == details.category_id) {
-                brandSelect.value = details.brand_id;
-                brandSelect.dispatchEvent(new Event('change'));
-            }
+            if (details.brand_id && catSelect.value == details.category_id) { brandSelect.value = details.brand_id; brandSelect.dispatchEvent(new Event('change')); }
         };
 
         brandSelect.onchange = async () => {
