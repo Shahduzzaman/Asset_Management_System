@@ -1,0 +1,3 @@
+ALTER TABLE purchased_products
+ADD COLUMN is_updated BOOLEAN DEFAULT FALSE,
+ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
