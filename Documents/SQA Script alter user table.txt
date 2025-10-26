@@ -1,0 +1,14 @@
+-- =================================================================
+--  ADD STATUS AND ROLE COLUMNS TO USERS TABLE
+-- =================================================================
+-- This script adds 'status' and 'role' columns to the existing 'users'
+-- table to manage user activation and permissions.
+-- =================================================================
+
+ALTER TABLE users
+ADD COLUMN status BOOLEAN DEFAULT FALSE COMMENT '0=Active, 1=Disabled',
+ADD COLUMN role BOOLEAN DEFAULT FALSE COMMENT '0=User, 1=Admin';
+
+-- =================================================================
+--  End of Script
+-- =================================================================
