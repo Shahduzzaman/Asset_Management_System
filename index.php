@@ -26,7 +26,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $password = $_POST['password'];
 
     // Prepare SQL statement to prevent SQL injection
-    $sql = "SELECT user_id, user_name, password_hash FROM users WHERE email = ? AND is_deleted = FALSE";
+    // *** Added 'role' to the SELECT statement ***
+    $sql = "SELECT user_id, user_name, password_hash, role FROM users WHERE email = ? AND is_deleted = FALSE AND status = FALSE"; // status = FALSE (0) means Active
     
     $stmt = $conn->prepare($sql);
     
@@ -40,10 +41,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Store the result
         $stmt->store_result();
         
-        // Check if a user with that email exists
+        // Check if a user with that email exists and is active
         if ($stmt->num_rows == 1) {
-            // Bind the result variables
-            $stmt->bind_result($user_id, $user_name, $password_hash);
+            // Bind the result variables *** Added $user_role ***
+            $stmt->bind_result($user_id, $user_name, $password_hash, $user_role);
             
             // Fetch the result
             if ($stmt->fetch()) {
@@ -54,6 +55,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION["user_id"] = $user_id;
                     $_SESSION["user_name"] = $user_name;
                     $_SESSION['last_activity'] = time(); // Start the session timer
+                    $_SESSION['user_role'] = $user_role; // *** STORE USER ROLE IN SESSION ***
                     
                     // Redirect to a protected dashboard page
                     header("Location: dashboard.php");
@@ -64,8 +66,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             }
         } else {
-            // No user found with that email
-            $errorMessage = "Invalid email or password.";
+            // No user found or user is disabled
+            $errorMessage = "Invalid email or password, or account disabled.";
         }
         
         // Close the statement
