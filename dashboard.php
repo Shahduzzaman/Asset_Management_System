@@ -7,8 +7,17 @@ if (!isset($_SESSION["user_id"])) {
     exit();
 }
 
-// Get the user's name from the session and escape it for security
+// Check for and display error messages passed via session
+$errorMessage = '';
+if (isset($_SESSION['error_message'])) {
+    $errorMessage = $_SESSION['error_message'];
+    unset($_SESSION['error_message']); // Clear the message after displaying it once
+}
+
+// Get the user's name and role from the session
 $user_name = htmlspecialchars($_SESSION["user_name"]);
+$user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; // Default to 0 (User) if not set
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -31,6 +40,13 @@ $user_name = htmlspecialchars($_SESSION["user_name"]);
         <h1 class="text-3xl font-bold text-gray-800 mb-2">Asset Management System</h1>
         <p class="text-gray-600 mb-8">Welcome, <span class="font-semibold"><?php echo $user_name; ?></span>!</p>
 
+        <!-- Display Error Messages -->
+        <?php if (!empty($errorMessage)): ?>
+            <div id="error-alert-box" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+                <span class="block sm:inline"><?php echo htmlspecialchars($errorMessage); ?></span>
+            </div>
+        <?php endif; ?>
+
         <!-- Button Container -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <a href="product_setup.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
@@ -45,9 +61,18 @@ $user_name = htmlspecialchars($_SESSION["user_name"]);
             <a href="product_list.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
                 View Product
             </a>
-            <a href="create_user.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
-                Create User
-            </a>
+            
+            <?php // *** START: Conditional Links for Admin *** ?>
+            <?php if ($user_role === 1): ?> 
+                <a href="create_user.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
+                    Create User
+                </a>
+                <a href="manage_users.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
+                    Manage Users
+                </a>
+            <?php endif; ?>
+            <?php // *** END: Conditional Links for Admin *** ?>
+
             <a href="trash.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
                 Trash
             </a>
@@ -63,6 +88,18 @@ $user_name = htmlspecialchars($_SESSION["user_name"]);
             </a>
         </div>
     </main>
+
+    <script>
+        // Auto-hide error alert box
+        const errorAlertBox = document.getElementById('error-alert-box');
+        if (errorAlertBox) {
+            setTimeout(() => {
+                errorAlertBox.style.transition = 'opacity 0.5s ease';
+                errorAlertBox.style.opacity = '0';
+                setTimeout(() => errorAlertBox.remove(), 500); // Remove after fade out
+            }, 5000); // 5 seconds
+        }
+    </script>
 </body>
 </html>
 
