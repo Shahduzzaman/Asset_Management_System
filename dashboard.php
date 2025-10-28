@@ -35,7 +35,7 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
     <main class="w-full max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg text-center">
-        
+
         <!-- Header -->
         <h1 class="text-3xl font-bold text-gray-800 mb-2">Asset Management System</h1>
         <p class="text-gray-600 mb-8">Welcome, <span class="font-semibold"><?php echo $user_name; ?></span>!</p>
@@ -58,29 +58,35 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
             <a href="purchase_product.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
                 Purchased Product
             </a>
+             <a href="make_payment.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
+                Make Payment
+            </a>
             <a href="product_list.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
                 View Product
             </a>
-            
+             <a href="ledger.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
+                Ledger
+            </a>
+
             <?php // *** START: Conditional Links for Admin *** ?>
-            <?php if ($user_role === 1): ?> 
-                <a href="create_user.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
+            <?php if ($user_role === 1): ?>
+                <a href="create_user.php" class="bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-transform transform hover:scale-105 duration-300">
                     Create User
                 </a>
-                <a href="manage_users.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
+                <a href="manage_users.php" class="bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-transform transform hover:scale-105 duration-300">
                     Manage Users
                 </a>
             <?php endif; ?>
             <?php // *** END: Conditional Links for Admin *** ?>
 
-            <a href="trash.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
+            <a href="trash.php" class="bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-transform transform hover:scale-105 duration-300">
                 Trash
             </a>
-            <a href="my_profile.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 duration-300">
+            <a href="my_profile.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-transform transform hover:scale-105 duration-300">
                 My Profile
             </a>
         </div>
-        
+
         <!-- Logout Button -->
         <div class="mt-8 border-t pt-6">
              <a href="logout.php" class="inline-block w-full sm:w-auto px-6 py-3 text-md font-semibold text-white bg-red-600 rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-transform transform hover:scale-105">
