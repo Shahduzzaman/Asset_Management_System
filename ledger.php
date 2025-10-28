@@ -10,6 +10,8 @@ $_SESSION['last_activity'] = time();
 if (!isset($_SESSION["user_id"])) {
     header("Location: index.php"); exit();
 }
+// Store user name for print footer
+$current_user_name = $_SESSION['user_name'] ?? 'User';
 // --- END: SESSION & SECURITY CHECKS ---
 
 require_once 'connection.php';
@@ -22,7 +24,7 @@ $transactions = [];
 $total_debit = 0;
 $total_credit = 0;
 $final_balance = 0;
-$selected_vendor_details = null; // Changed to store full vendor details
+$selected_vendor_details = null;
 $start_date_display = '';
 $end_date_display = '';
 $errorMessage = '';
@@ -32,91 +34,64 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
     $start_date = filter_input(INPUT_POST, 'start_date');
     $end_date = filter_input(INPUT_POST, 'end_date');
 
-    // Basic Validation
     if (!$vendor_id || !$start_date || !$end_date) {
         $errorMessage = "Please select a vendor and valid start/end dates.";
     } elseif ($start_date > $end_date) {
         $errorMessage = "Start date cannot be after the end date.";
     } else {
-        // Fetch selected vendor details for display
         $stmt_vn = $conn->prepare("SELECT vendor_name, contact_person, address, phone, email FROM vendors WHERE vendor_id = ?");
         $stmt_vn->bind_param("i", $vendor_id);
         $stmt_vn->execute();
-        $result_vn = $stmt_vn->get_result();
-        $selected_vendor_details = $result_vn->fetch_assoc(); // Store all details
+        $selected_vendor_details = $stmt_vn->get_result()->fetch_assoc();
         $stmt_vn->close();
-        
+
         $start_date_display = $start_date;
         $end_date_display = $end_date;
 
-        // 1. Fetch Payments (Debits - Money LEAVING the company)
-        $sql_payments = "SELECT payment_date as transaction_date, invoice_number, debit_amount as amount, 'Payment Made' as type, payment_method, payment_info_no
-                         FROM payment_table 
-                         WHERE vendor_id = ? AND payment_date BETWEEN ? AND ? AND is_deleted = FALSE";
+        $sql_payments = "SELECT payment_date as transaction_date, invoice_number, debit_amount as amount, 'Payment Made' as type, payment_method, payment_info_no FROM payment_table WHERE vendor_id = ? AND payment_date BETWEEN ? AND ? AND is_deleted = FALSE";
         $stmt_pay = $conn->prepare($sql_payments);
         $stmt_pay->bind_param("iss", $vendor_id, $start_date, $end_date);
         $stmt_pay->execute();
         $payments = $stmt_pay->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt_pay->close();
 
-        // 2. Fetch Purchases (Credits - Value ENTERING the company)
-        // Aggregate purchases by date and invoice for cleaner ledger display
-        $sql_purchases = "SELECT purchase_date as transaction_date, invoice_number, SUM(quantity * unit_price) as amount, 'Purchase Received' as type 
-                          FROM purchased_products 
-                          WHERE vendor_id = ? AND purchase_date BETWEEN ? AND ? AND is_deleted = FALSE
-                          GROUP BY purchase_date, invoice_number"; // Group by date and invoice
+        $sql_purchases = "SELECT purchase_date as transaction_date, invoice_number, SUM(quantity * unit_price) as amount, 'Purchase Received' as type FROM purchased_products WHERE vendor_id = ? AND purchase_date BETWEEN ? AND ? AND is_deleted = FALSE GROUP BY purchase_date, invoice_number";
         $stmt_p = $conn->prepare($sql_purchases);
         $stmt_p->bind_param("iss", $vendor_id, $start_date, $end_date);
         $stmt_p->execute();
         $purchases = $stmt_p->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt_p->close();
 
-
-        // 3. Combine and Sort Transactions
         $transactions = array_merge($payments, $purchases);
         usort($transactions, function($a, $b) {
             $dateComparison = strcmp($a['transaction_date'], $b['transaction_date']);
             if ($dateComparison === 0) {
-                 // Sort Purchases before Payments on the same day for typical ledger flow
                  if ($a['type'] === 'Purchase Received' && $b['type'] === 'Payment Made') return -1;
                  if ($a['type'] === 'Payment Made' && $b['type'] === 'Purchase Received') return 1;
-                 return 0; 
+                 return 0;
             }
             return $dateComparison;
         });
 
-        // 4. Calculate Running Balance (Company's perspective)
-        // Positive balance = Company has paid more than received value (Credit Balance with Vendor)
-        // Negative balance = Company has received more value than paid (Debit Balance with Vendor - Amount Owed)
         $current_balance = 0;
-        foreach ($transactions as &$txn) { // Use reference to add balance directly
+        foreach ($transactions as &$txn) {
             if ($txn['type'] === 'Payment Made') {
-                $txn['debit'] = $txn['amount']; // Debit from company account
-                $txn['credit'] = 0;
-                $current_balance += $txn['amount']; // Increase balance (paid more)
-                $total_debit += $txn['amount'];
-                 // Add payment method/info to description for clarity
+                $txn['debit'] = $txn['amount']; $txn['credit'] = 0; $current_balance += $txn['amount']; $total_debit += $txn['amount'];
                  $txn['description'] = 'Payment Made';
                  if(!empty($txn['payment_method'])) $txn['description'] .= ' (' . $txn['payment_method'];
                  if(!empty($txn['payment_info_no'])) $txn['description'] .= ' #' . $txn['payment_info_no'];
                  if(!empty($txn['payment_method'])) $txn['description'] .= ')';
-
-            } else { // Purchase Received
-                $txn['debit'] = 0;
-                $txn['credit'] = $txn['amount']; // Credit value received by company
-                $current_balance -= $txn['amount']; // Decrease balance (owe more / received value)
-                $total_credit += $txn['amount'];
-                $txn['description'] = 'Purchase Received'; // Simple description for purchase rows
+            } else {
+                $txn['debit'] = 0; $txn['credit'] = $txn['amount']; $current_balance -= $txn['amount']; $total_credit += $txn['amount'];
+                $txn['description'] = 'Purchase Received';
             }
             $txn['balance'] = $current_balance;
-            // Add D/C indicator (Company's perspective)
-            $txn['balance_indicator'] = ($current_balance < 0) ? '(D)' : '(C)'; // D = Debit (Owed), C = Credit (Overpaid/Advance)
+            $txn['balance_indicator'] = ($current_balance < 0) ? '(D)' : '(C)';
         }
-        unset($txn); // Unset reference
-        $final_balance = $current_balance; 
+        unset($txn);
+        $final_balance = $current_balance;
     }
 } else {
-     // Default date range if not POST
      $end_date_default = date('Y-m-d');
      $start_date_default = date('Y-m-d', strtotime('-1 month'));
 }
@@ -130,28 +105,81 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
     <title>Vendor Ledger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style> 
-        body { font-family: 'Inter', sans-serif; } 
+    <style>
+        body { font-family: 'Inter', sans-serif; }
         /* Print specific styles */
         @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             body * { visibility: hidden; }
             #print-section, #print-section * { visibility: visible; }
-            #print-section { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; }
-            #print-header { display: flex !important; align-items: center; margin-bottom: 20px; }
-            #print-logo { height: 50px; width: auto; margin-right: 20px; }
-            #print-company-info { font-size: 12px; }
-            #print-company-name { font-size: 18px; font-weight: bold; }
-            #print-tagline { font-size: 14px; }
-            .no-print { display: none !important; }
-            table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-            th, td { border: 1px solid #ddd; padding: 4px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .text-right { text-align: right; }
-             /* Ensure colors print reasonably (might need browser settings) */
-            .text-red-600 { color: #DC2626 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;}
-            .text-green-600 { color: #16A34A !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;}
-            .bg-gray-50 { background-color: #F9FAFB !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;}
+            #print-section {
+                position: absolute; left: 0; top: 0;
+                width: 100%; height: auto;
+                margin: 0; padding: 10mm;
+                font-size: 9pt; /* Base print font size (adjust if needed, kept slightly smaller) */
+            }
+             #print-header {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 20px;
+                border-bottom: 1px solid #ccc;
+                padding-bottom: 15px;
+             }
+             #print-logo {
+                 height: 55px;
+                 width: auto;
+                 margin-right: 15px;
+             }
+             #print-company-info { text-align: left; }
+             #print-company-name { font-size: 20px; font-weight: bold; line-height: 1.2; }
+             #print-tagline { font-size: 14px; line-height: 1.2;}
+             .no-print { display: none !important; }
+             table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 7pt; } /* Reduced table font size */
+             th, td { border: 1px solid #ccc; padding: 3px 5px; text-align: left; word-wrap: break-word; }
+             th { background-color: #eee !important; font-weight: bold;}
+             tbody tr:nth-child(even) { background-color: #f9f9f9 !important; }
+             .text-right { text-align: right; }
+             .text-red-600 { color: #DC2626 !important; }
+             .text-green-600 { color: #16A34A !important; }
+             .bg-gray-50 { background-color: #F9FAFB !important; }
+             .summary-section {
+                 margin-top: 25px;
+                 padding: 15px;
+                 border: 1px solid #ccc;
+                 border-top: 2px solid #333;
+                 background-color: #f9f9f9 !important;
+                 border-radius: 5px;
+                 font-size: 9pt; /* Match base print font size */
+                 page-break-inside: avoid;
+              }
+              .summary-section h3 { font-size: 11pt; margin-bottom: 10px; } /* Slightly smaller summary heading */
+             .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+             .summary-section p { margin: 0; }
+             #print-footer {
+                  display: block !important;
+                  position: fixed;
+                  bottom: 10mm;
+                  left: 10mm;
+                  right: 10mm;
+                  width: calc(100% - 20mm);
+                  font-size: 8pt;
+                  border-top: 1px solid #ccc;
+                  padding-top: 5px;
+                  text-align: left;
+              }
+             #print-footer-left { float: left; }
+             #print-footer-right { float: right; }
+
+             @page {
+                 size: A4;
+                 margin: 15mm;
+                 /* Reset default headers/footers */
+                 @top-left { content: ""; } @top-center { content: ""; } @top-right { content: ""; }
+                 @bottom-left { content: ""; } @bottom-center { content: ""; } @bottom-right { content: ""; }
+             }
         }
+        #print-footer, #print-header { display: none; } /* Hide header/footer by default */
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -194,9 +222,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
 
         <!-- Ledger Display Section -->
         <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger']) && empty($errorMessage)): ?>
-        <div id="print-section"> 
-            <!-- Print Header (Hidden by default, shown only on print) -->
-            <div id="print-header" class="hidden no-print">
+        <div id="print-section">
+            <!-- Print Header -->
+            <div id="print-header">
                 <img id="print-logo" src="images/logo.png" alt="Company Logo">
                 <div id="print-company-info">
                     <div id="print-company-name">Protection One</div>
@@ -205,13 +233,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             </div>
 
             <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                <div class="p-6 border-b flex justify-between items-center">
+                <div class="p-6 border-b flex justify-between">
                     <div>
-                         <h2 class="text-2xl font-bold text-gray-800">Ledger for: <?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?></h2>
-                         <p class="text-sm text-gray-600">Period: <?php echo htmlspecialchars($start_date_display); ?> to <?php echo htmlspecialchars($end_date_display); ?></p>
-                         <?php if ($selected_vendor_details): // Display Vendor Details ?>
-                         <div class="text-xs text-gray-500 mt-2">
-                             <?php if($selected_vendor_details['contact_person']) echo htmlspecialchars($selected_vendor_details['contact_person']) . '<br>'; ?>
+                         <h2 class="text-2xl font-bold text-gray-800 mb-1">Ledger for: <?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?></h2>
+                         <p class="text-sm text-gray-600 mb-3">Period: <?php echo htmlspecialchars($start_date_display); ?> to <?php echo htmlspecialchars($end_date_display); ?></p>
+                         <?php if ($selected_vendor_details): ?>
+                         <div class="text-xs text-gray-500 mt-2 leading-relaxed">
+                             <?php if($selected_vendor_details['contact_person']) echo '<span class="font-bold">' . htmlspecialchars($selected_vendor_details['contact_person']) . '</span><br>'; ?>
                              <?php if($selected_vendor_details['email']) echo 'Email: ' . htmlspecialchars($selected_vendor_details['email']) . '<br>'; ?>
                              <?php if($selected_vendor_details['phone']) echo 'Phone: ' . htmlspecialchars($selected_vendor_details['phone']) . '<br>'; ?>
                              <?php if($selected_vendor_details['address']) echo 'Address: ' . nl2br(htmlspecialchars($selected_vendor_details['address'])); ?>
@@ -253,22 +281,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                     </table>
                 </div>
                  <!-- Summary Section -->
-                 <div class="p-6 bg-gray-50 border-t grid grid-cols-1 md:grid-cols-3 gap-4 text-sm font-medium text-gray-700">
-                     <p>Total Payments (Debit): <span class="font-bold text-green-600"><?php echo number_format($total_debit, 2); ?></span></p>
-                     <p>Total Purchases (Credit): <span class="font-bold text-red-600"><?php echo number_format($total_credit, 2); ?></span></p>
-                     <p>Final Balance: 
-                        <span class="font-bold <?php echo $final_balance < 0 ? 'text-red-700' : 'text-gray-800'; ?>">
-                            <?php echo number_format(abs($final_balance), 2); ?>
-                            <?php 
-                                // Company's Perspective: Negative means Debit (Owed by Company), Positive means Credit (Company Paid More)
-                                if ($final_balance < 0) echo " (Due to Vendor - D)"; 
-                                elseif ($final_balance > 0) echo " (Advance Paid / Credit - C)";
-                                else echo " (Settled)";
-                            ?>
-                        </span>
-                     </p>
+                 <div class="summary-section p-6 bg-gray-50 border-t">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700">Ledger Summary</h3>
+                     <div class="summary-grid grid grid-cols-1 md:grid-cols-3 gap-4 text-sm font-medium text-gray-700">
+                         <p>Total Payments (Debit): <span class="font-bold text-green-600"><?php echo number_format($total_debit, 2); ?></span></p>
+                         <p>Total Purchases (Credit): <span class="font-bold text-red-600"><?php echo number_format($total_credit, 2); ?></span></p>
+                         <p>Final Balance:
+                            <span class="font-bold <?php echo $final_balance < 0 ? 'text-red-700' : 'text-gray-800'; ?>">
+                                <?php echo number_format(abs($final_balance), 2); ?>
+                                <?php
+                                    // Description without (D)/(C) in summary
+                                    if ($final_balance < 0) echo " (Due to Vendor)";
+                                    elseif ($final_balance > 0) echo " (Advance Paid / Credit)";
+                                    else echo " (Settled)";
+                                ?>
+                            </span>
+                         </p>
+                     </div>
                  </div>
             </div>
+
+            <!-- Print Footer -->
+            <div id="print-footer">
+                 <div id="print-footer-left">
+                     Printed by: <?php echo htmlspecialchars($current_user_name); ?> on <span id="print-datetime"></span>
+                 </div>
+                 <div id="print-footer-right">
+                     Page <span class="pageNumber"></span>
+                 </div>
+             </div>
         </div>
         <?php endif; ?>
 
@@ -277,13 +318,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const alertBox = document.getElementById('alert-box');
-    if (alertBox) { 
-        setTimeout(() => { alertBox.style.transition = 'opacity 0.5s ease'; alertBox.style.opacity = '0'; setTimeout(() => alertBox.remove(), 500); }, 5000); 
+    if (alertBox) {
+        setTimeout(() => { alertBox.style.transition = 'opacity 0.5s ease'; alertBox.style.opacity = '0'; setTimeout(() => alertBox.remove(), 500); }, 5000);
     }
      <?php if ($_SERVER["REQUEST_METHOD"] != "POST"): ?>
         const today = new Date(); const oneMonthAgo = new Date(); oneMonthAgo.setMonth(today.getMonth() - 1);
         document.getElementById('end_date').valueAsDate = today; document.getElementById('start_date').valueAsDate = oneMonthAgo;
      <?php endif; ?>
+
+     const now = new Date();
+     const printDateTimeEl = document.getElementById('print-datetime');
+     if (printDateTimeEl) {
+         printDateTimeEl.textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+     }
+
+     // Simple CSS counter for current page number in print footer
+     const style = document.createElement('style');
+     style.innerHTML = `
+        @media print {
+            body { counter-reset: pageNumber; }
+            #print-footer-right .pageNumber::before { content: counter(pageNumber); }
+             thead { display: table-header-group; } /* Repeat header on each page */
+             /* Add page break instructions */
+             table { page-break-inside: auto; }
+             tr    { page-break-inside: avoid; page-break-after: auto; }
+             #print-section { counter-increment: pageNumber; } /* Increment page counter for print section */
+        }
+     `;
+     document.head.appendChild(style);
 });
 </script>
 
