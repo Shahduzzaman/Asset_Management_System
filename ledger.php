@@ -107,80 +107,127 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+
         /* Print specific styles */
         @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             body * { visibility: hidden; }
+
             #print-section, #print-section * { visibility: visible; }
+
             #print-section {
-                position: absolute; left: 0; top: 0;
-                width: 100%; height: auto;
-                margin: 0; padding: 10mm;
-                font-size: 9pt; /* Base print font size (adjust if needed, kept slightly smaller) */
+                position: absolute;
+                left: 0; top: 0;
+                width: 100%;
+                height: auto;
+                margin: 0;
+                padding: 8mm;
+                font-size: 8pt; /* slightly smaller base font */
             }
-             #print-header {
+
+            /* Header */
+            #print-header {
                 display: flex !important;
                 align-items: center;
                 justify-content: center;
                 margin-bottom: 20px;
-                border-bottom: 1px solid #ccc;
-                padding-bottom: 15px;
-             }
-             #print-logo {
-                 height: 55px;
-                 width: auto;
-                 margin-right: 15px;
-             }
-             #print-company-info { text-align: left; }
-             #print-company-name { font-size: 20px; font-weight: bold; line-height: 1.2; }
-             #print-tagline { font-size: 14px; line-height: 1.2;}
-             .no-print { display: none !important; }
-             table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 7pt; } /* Reduced table font size */
-             th, td { border: 1px solid #ccc; padding: 3px 5px; text-align: left; word-wrap: break-word; }
-             th { background-color: #eee !important; font-weight: bold;}
-             tbody tr:nth-child(even) { background-color: #f9f9f9 !important; }
-             .text-right { text-align: right; }
-             .text-red-600 { color: #DC2626 !important; }
-             .text-green-600 { color: #16A34A !important; }
-             .bg-gray-50 { background-color: #F9FAFB !important; }
-             .summary-section {
-                 margin-top: 25px;
-                 padding: 15px;
-                 border: 1px solid #ccc;
-                 border-top: 2px solid #333;
-                 background-color: #f9f9f9 !important;
-                 border-radius: 5px;
-                 font-size: 9pt; /* Match base print font size */
-                 page-break-inside: avoid;
-              }
-              .summary-section h3 { font-size: 11pt; margin-bottom: 10px; } /* Slightly smaller summary heading */
-             .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-             .summary-section p { margin: 0; }
-             #print-footer {
-                  display: block !important;
-                  position: fixed;
-                  bottom: 10mm;
-                  left: 10mm;
-                  right: 10mm;
-                  width: calc(100% - 20mm);
-                  font-size: 8pt;
-                  border-top: 1px solid #ccc;
-                  padding-top: 5px;
-                  text-align: left;
-              }
-             #print-footer-left { float: left; }
-             #print-footer-right { float: right; }
+            }
+            #print-logo {
+                height: 55px;
+                width: auto;
+                margin-right: 1px;
+            }
+            #print-company-info { text-align: left; }
+            #print-company-name { font-size: 20px; font-weight: bold; line-height: 1.1; }
+            #print-tagline { font-size: 13px; line-height: 1.1; }
 
-             @page {
-                 size: A4;
-                 margin: 15mm;
-                 /* Reset default headers/footers */
-                 @top-left { content: ""; } @top-center { content: ""; } @top-right { content: ""; }
-                 @bottom-left { content: ""; } @bottom-center { content: ""; } @bottom-right { content: ""; }
-             }
+            .no-print { display: none !important; }
+
+            /* --- SLIM TABLE STYLE --- */
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 10px;
+                font-size: 7.5pt;      /* slightly smaller font */
+                line-height: 1.0;      /* tightest line height */
+            }
+            th, td {
+                border: 1px solid #ccc;
+                padding: 0.5px 2px;    /* ultra-slim padding */
+                text-align: left;
+                vertical-align: middle;
+                word-wrap: break-word;
+            }
+            th {
+                background-color: #eee !important;
+                font-weight: bold;
+            }
+            tbody tr:nth-child(even) {
+                background-color: #f9f9f9 !important;
+            }
+
+            .text-right { text-align: right; }
+            .text-red-600 { color: #DC2626 !important; }
+            .text-green-600 { color: #16A34A !important; }
+            .bg-gray-50 { background-color: #F9FAFB !important; }
+
+            /* Summary Section */
+            .summary-section {
+                margin-top: 20px;
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-top: 2px solid #333;
+                background-color: #f9f9f9 !important;
+                border-radius: 4px;
+                font-size: 8pt;
+                page-break-inside: avoid;
+            }
+            .summary-section h3 {
+                font-size: 10pt;
+                margin-bottom: 6px;
+            }
+            .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 10px;
+            }
+            .summary-section p { margin: 0; }
+
+            /* Footer */
+            #print-footer {
+                display: block !important;
+                position: fixed;
+                bottom: 8mm;
+                left: 8mm;
+                right: 8mm;
+                width: calc(100% - 16mm);
+                font-size: 7pt;
+                border-top: 1px solid #ccc;
+                padding-top: 4px;
+                text-align: left;
+            }
+            #print-footer-left { float: left; }
+            #print-footer-right { float: right; }
+
+            /* Page setup */
+            @page {
+                size: A4;
+                margin: 12mm;
+                @top-left { content: ""; }
+                @top-center { content: ""; }
+                @top-right { content: ""; }
+                @bottom-left { content: ""; }
+                @bottom-center { content: ""; }
+                @bottom-right { content: ""; }
+            }
         }
-        #print-footer, #print-header { display: none; } /* Hide header/footer by default */
+
+        /* Hide header/footer by default */
+        #print-footer, #print-header { display: none; }
     </style>
+
+
+
 </head>
 <body class="bg-gray-100 min-h-screen">
 
@@ -233,7 +280,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             </div>
 
             <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                <div class="p-6 border-b flex justify-between">
+                 <div class="p-6 border-b flex justify-between">
                     <div>
                          <h2 class="text-2xl font-bold text-gray-800 mb-1">Ledger for: <?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?></h2>
                          <p class="text-sm text-gray-600 mb-3">Period: <?php echo htmlspecialchars($start_date_display); ?> to <?php echo htmlspecialchars($end_date_display); ?></p>
@@ -246,8 +293,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                          </div>
                          <?php endif; ?>
                     </div>
-                     <button onclick="window.print()" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition no-print">Print Ledger</button>
-                </div>
+                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full">
                         <thead class="bg-gray-50 border-b">
@@ -310,6 +356,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                      Page <span class="pageNumber"></span>
                  </div>
              </div>
+             <!-- Print button moved here, outside the main content block but inside print-section -->
+             <div class="mt-6 text-right no-print">
+                 <button onclick="window.print()" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition text-sm">Print Ledger</button>
+            </div>
         </div>
         <?php endif; ?>
 
@@ -342,7 +392,8 @@ document.addEventListener('DOMContentLoaded', () => {
              /* Add page break instructions */
              table { page-break-inside: auto; }
              tr    { page-break-inside: avoid; page-break-after: auto; }
-             #print-section { counter-increment: pageNumber; } /* Increment page counter for print section */
+             /* Increment page counter correctly for elements within print section */
+             #print-section { counter-increment: pageNumber; }
         }
      `;
      document.head.appendChild(style);
