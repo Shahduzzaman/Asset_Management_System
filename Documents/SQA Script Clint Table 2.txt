@@ -1,0 +1,15 @@
+-- Option 1 (Recommended): Deleting a Head Office deletes all its branches.
+ALTER TABLE Client_Branch 
+DROP CONSTRAINT fk_client_branch_head; -- (May have a different name)
+
+ALTER TABLE Client_Branch 
+ADD CONSTRAINT fk_client_branch_head 
+FOREIGN KEY (client_head_id_fk) REFERENCES Client_Head(client_head_id)
+ON DELETE CASCADE;
+
+-- Option 2: Deleting a Head Office sets the branches' parent to NULL.
+-- (Only use if you want to keep orphan branches)
+-- ALTER TABLE Client_Branch 
+-- ADD CONSTRAINT fk_client_branch_head 
+-- FOREIGN KEY (client_head_id_fk) REFERENCES Client_Head(client_head_id)
+-- ON DELETE SET NULL;
