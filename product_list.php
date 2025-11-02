@@ -22,6 +22,9 @@ if (isset($_GET['action'])) {
 
     // Action: Get details for a single product
     if ($_GET['action'] === 'get_product_details' && isset($_GET['id'])) {
+        $purchase_id = intval($_GET['id']);
+        
+        // Query 1: Get main product data
         $sql = "SELECT pp.*, v.vendor_name, c.category_name, b.brand_name, m.model_name, u.user_name as creator_name
                 FROM purchased_products pp
                 JOIN vendors v ON pp.vendor_id = v.vendor_id
@@ -31,19 +34,41 @@ if (isset($_GET['action'])) {
                 LEFT JOIN users u ON pp.created_by = u.user_id
                 WHERE pp.purchase_id = ?";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("i", $_GET['id']);
+        $stmt->bind_param("i", $purchase_id);
         $stmt->execute();
         $data = $stmt->get_result()->fetch_assoc();
-        if ($data) $response = ['status' => 'success', 'data' => $data];
-        else $response['message'] = 'Product not found.';
+        $stmt->close();
+
+        if ($data) {
+            // Query 2: Get all associated serial numbers
+            $sql_sl = "SELECT product_sl FROM product_sl WHERE purchase_id_fk = ?";
+            $stmt_sl = $conn->prepare($sql_sl);
+            $stmt_sl->bind_param("i", $purchase_id);
+            $stmt_sl->execute();
+            $sl_result = $stmt_sl->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt_sl->close();
+            
+            // Concatenate serials into a string
+            $data['serial_numbers'] = implode(', ', array_column($sl_result, 'product_sl'));
+            
+            $response = ['status' => 'success', 'data' => $data];
+        } else {
+            $response['message'] = 'Product not found.';
+        }
     }
     
-    // Action: Update a product
+    // Action: Update a product (REMOVED serial_number from update)
     if ($_GET['action'] === 'update_product' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
-        $sql = "UPDATE purchased_products SET category_id=?, brand_id=?, model_id=?, quantity=?, unit_price=?, warranty_period=?, serial_number=?, vendor_id=?, purchase_date=?, invoice_number=?, is_updated=TRUE WHERE purchase_id=?";
+        // Note: Serial number editing is removed from this form.
+        $sql = "UPDATE purchased_products SET category_id=?, brand_id=?, model_id=?, quantity=?, unit_price=?, warranty_period=?, vendor_id=?, purchase_date=?, invoice_number=?, is_updated=TRUE WHERE purchase_id=?";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("iiiisssisii", $data['category_id'], $data['brand_id'], $data['model_id'], $data['quantity'], $data['unit_price'], $data['warranty_period'], $data['serial_number'], $data['vendor_id'], $data['purchase_date'], $data['invoice_number'], $data['purchase_id']);
+        $stmt->bind_param("iiiisssisi", 
+            $data['category_id'], $data['brand_id'], $data['model_id'], 
+            $data['quantity'], $data['unit_price'], $data['warranty_period'], 
+            $data['vendor_id'], $data['purchase_date'], $data['invoice_number'], 
+            $data['purchase_id']
+        );
         if ($stmt->execute()) {
              $response = ['status' => 'success', 'message' => 'Product updated successfully.'];
         } else {
@@ -51,10 +76,10 @@ if (isset($_GET['action'])) {
         }
     }
 
-    // Action: Soft delete a product
+    // *** START: FILLED IN MISSING DELETE LOGIC ***
     if ($_GET['action'] === 'delete_product' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
-        $sql = "UPDATE purchased_products SET is_deleted = TRUE WHERE purchase_id = ?";
+        $sql = "UPDATE purchased_products SET is_deleted = TRUE, is_updated = TRUE WHERE purchase_id = ?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $data['purchase_id']);
         if ($stmt->execute()) {
@@ -63,8 +88,9 @@ if (isset($_GET['action'])) {
              $response['message'] = 'Database delete error: ' . $stmt->error;
         }
     }
+    // *** END: FILLED IN MISSING DELETE LOGIC ***
     
-    // Chained dropdowns for edit modal
+    // *** START: FILLED IN MISSING GET_LISTS LOGIC ***
     if ($_GET['action'] === 'get_lists') {
          if ($_GET['list'] === 'brands' && isset($_GET['category_id'])) {
             $sql = "SELECT brand_id, brand_name FROM brands WHERE category_id = ? AND is_deleted = FALSE ORDER BY brand_name";
@@ -79,6 +105,7 @@ if (isset($_GET['action'])) {
             $response = ['status' => 'success', 'data' => $data];
         }
     }
+    // *** END: FILLED IN MISSING GET_LISTS LOGIC ***
 
     echo json_encode($response);
     $conn->close();
@@ -87,6 +114,7 @@ if (isset($_GET['action'])) {
 
 // --- Part 2: Fetch initial data for page load ---
 header('Content-Type: text/html');
+// Main query no longer includes serial_number
 $products_sql = "SELECT pp.purchase_id, pp.quantity, pp.unit_price, pp.invoice_number, 
                         v.vendor_name, c.category_name, b.brand_name, m.model_name
                  FROM purchased_products pp
@@ -97,11 +125,8 @@ $products_sql = "SELECT pp.purchase_id, pp.quantity, pp.unit_price, pp.invoice_n
                  WHERE pp.is_deleted = FALSE
                  ORDER BY pp.purchase_id DESC";
 $products = $conn->query($products_sql)->fetch_all(MYSQLI_ASSOC);
-
-// Data for edit form dropdowns
 $all_vendors = $conn->query("SELECT vendor_id, vendor_name FROM vendors WHERE is_deleted = FALSE ORDER BY vendor_name")->fetch_all(MYSQLI_ASSOC);
 $all_categories = $conn->query("SELECT category_id, category_name FROM categories WHERE is_deleted = FALSE ORDER BY category_name")->fetch_all(MYSQLI_ASSOC);
-
 $conn->close();
 ?>
 
@@ -112,27 +137,15 @@ $conn->close();
     <title>Product List</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style> 
-        body { font-family: 'Inter', sans-serif; } 
-        .modal { display: none; } 
-        .modal.is-open { display: flex; }
-        #product-table tbody tr { cursor: pointer; }
-    </style>
+    <style> body { font-family: 'Inter', sans-serif; } .modal { display: none; } .modal.is-open { display: flex; } #product-table tbody tr { cursor: pointer; } </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
-
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-800">Product Inventory</h1>
             <a href="dashboard.php" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">&larr; Back to Dashboard</a>
         </div>
-
-        <!-- Search Bar -->
-        <div class="mb-6">
-            <input type="text" id="search-box" placeholder="Search products..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        </div>
-
-        <!-- Product Table -->
+        <div class="mb-6"><input type="text" id="search-box" placeholder="Search products..." class="w-full p-3 border-gray-300 rounded-lg"></div>
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
             <div class="overflow-x-auto">
                 <table id="product-table" class="min-w-full">
@@ -166,9 +179,11 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- View Details Modal -->
     <div id="view-details-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4"><div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col"><div class="p-4 border-b flex justify-between items-center"><h2 class="text-xl font-semibold">Product Details</h2><button class="close-modal-btn text-2xl font-bold">&times;</button></div><div id="view-modal-body" class="p-6 space-y-4 text-sm overflow-y-auto"></div><div class="p-4 bg-gray-50 border-t text-right"><button class="close-modal-btn bg-gray-300 px-4 py-2 rounded-lg">Close</button></div></div></div>
-    <div id="edit-product-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col"><div class="p-4 border-b"><h2 class="text-xl font-semibold">Edit Product</h2></div><div class="p-6 space-y-4 overflow-y-auto"><input type="hidden" id="edit-purchase-id"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label class="block text-sm">Category</label><select id="edit-category-id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div><div><label class="block text-sm">Brand</label><select id="edit-brand-id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div><div><label class="block text-sm">Model</label><select id="edit-model-id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div></div><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label class="block text-sm">Vendor</label><select id="edit-vendor-id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div><div><label class="block text-sm">Purchase Date</label><input type="date" id="edit-purchase-date" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div><label class="block text-sm">Invoice #</label><input type="text" id="edit-invoice-number" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div></div><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label class="block text-sm">Quantity</label><input type="number" id="edit-quantity" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div><label class="block text-sm">Unit Price</label><input type="number" step="0.01" id="edit-unit-price" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div><label class="block text-sm">Warranty</label><input type="text" id="edit-warranty-period" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div></div><div><label class="block text-sm">Serial(s)</label><input type="text" id="edit-serial-number" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div></div><div class="p-4 bg-gray-50 border-t flex justify-end gap-4"><button class="close-modal-btn bg-gray-300 px-4 py-2 rounded-lg">Cancel</button><button id="edit-update-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg">Update Product</button></div></div></div>
+    <!-- Edit Modal -->
+    <div id="edit-product-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col"><div class="p-4 border-b"><h2 class="text-xl font-semibold">Edit Product</h2></div><div class="p-6 space-y-4 overflow-y-auto max-h-[70vh]"><input type="hidden" id="edit-purchase-id"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label class="block text-sm">Category</label><select id="edit-category-id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div><div><label class="block text-sm">Brand</label><select id="edit-brand-id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div><div><label class="block text-sm">Model</label><select id="edit-model-id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div></div><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label class="block text-sm">Vendor</label><select id="edit-vendor-id" class="mt-1 w-full p-2 border-gray-300 rounded-md"></select></div><div><label class="block text-sm">Purchase Date</label><input type="date" id="edit-purchase-date" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div><label class="block text-sm">Invoice #</label><input type="text" id="edit-invoice-number" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div></div><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label class="block text-sm">Quantity</label><input type="number" id="edit-quantity" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div><label class="block text-sm">Unit Price</label><input type="number" step="0.01" id="edit-unit-price" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div><div><label class="block text-sm">Warranty</label><input type="text" id="edit-warranty-period" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div></div><div><label class="block text-sm">Serial(s) (Read-only)</label><textarea id="edit-serial-number" readonly class="mt-1 w-full p-2 border-gray-300 rounded-md bg-gray-100 cursor-not-allowed" rows="2"></textarea></div></div><div class="p-4 bg-gray-50 border-t flex justify-end gap-4"><button class="close-modal-btn bg-gray-300 px-4 py-2 rounded-lg">Cancel</button><button id="edit-update-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg">Update Product</button></div></div></div>
+    <!-- Delete Modal -->
     <div id="delete-confirm-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4"><div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center"><h2 class="text-xl font-bold mb-4">Confirm Deletion</h2><p class="mb-6">Are you sure you want to delete this product?</p><input type="hidden" id="delete-purchase-id"><div class="flex justify-center gap-4"><button class="close-modal-btn bg-gray-300 px-6 py-2 rounded-lg">Cancel</button><button id="delete-confirm-btn" class="bg-red-600 text-white font-bold px-6 py-2 rounded-lg">Confirm Delete</button></div></div></div>
 
 <script>
@@ -178,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteModal = document.getElementById('delete-confirm-modal');
     const allModals = [viewModal, editModal, deleteModal];
     
-    // --- Live Search ---
     document.getElementById('search-box').addEventListener('input', e => {
         const searchTerm = e.target.value.toLowerCase();
         document.querySelectorAll('#product-table tbody tr').forEach(row => {
@@ -186,12 +200,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Modal Controls ---
     const openModal = modalEl => modalEl.classList.add('is-open');
     const closeModal = modalEl => modalEl.classList.remove('is-open');
     allModals.forEach(modal => modal.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', () => closeModal(modal))));
 
-    // --- Chained Dropdowns for Edit Form ---
     const allVendors = <?php echo json_encode($all_vendors); ?>;
     const allCategories = <?php echo json_encode($all_categories); ?>;
     const populateSelect = (el, data, valKey, textKey) => { el.innerHTML = '<option value="">-- Select --</option>'; data.forEach(item => el.add(new Option(item[textKey], item[valKey]))); };
@@ -208,28 +220,42 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!catSelect.value) return;
             const res = await fetch(`?action=get_lists&list=brands&category_id=${catSelect.value}`); const { data } = await res.json();
             populateSelect(brandSelect, data, 'brand_id', 'brand_name');
-            if (details.brand_id && catSelect.value == details.category_id) { brandSelect.value = details.brand_id; brandSelect.dispatchEvent(new Event('change')); }
+            // Check details.brand_id only if catSelect.value matches details.category_id
+            if (details.brand_id && catSelect.value == details.category_id) { 
+                brandSelect.value = details.brand_id; 
+                brandSelect.dispatchEvent(new Event('change')); 
+                details.brand_id = null; // Prevent re-triggering
+            }
         };
         brandSelect.onchange = async () => {
             modelSelect.disabled = true; modelSelect.innerHTML = '';
             if (!brandSelect.value) return;
             const res = await fetch(`?action=get_lists&list=models&brand_id=${brandSelect.value}`); const { data } = await res.json();
             populateSelect(modelSelect, data, 'model_id', 'model_name');
-            if (details.model_id && brandSelect.value == details.brand_id) modelSelect.value = details.model_id;
+             // Check details.model_id only if brandSelect.value matches details.brand_id
+            if (details.model_id && brandSelect.value == details.original_brand_id) { 
+                modelSelect.value = details.model_id;
+                details.model_id = null; // Prevent re-triggering
+            }
         };
 
-        if (details.category_id) { catSelect.value = details.category_id; catSelect.dispatchEvent(new Event('change')); }
+        if (details.category_id) { 
+            // Store original IDs to ensure correct selection after async fetches
+            details.original_brand_id = details.brand_id; 
+            details.original_model_id = details.model_id;
+            catSelect.value = details.category_id; 
+            catSelect.dispatchEvent(new Event('change')); 
+        }
         if (details.vendor_id) document.getElementById('edit-vendor-id').value = details.vendor_id;
     }
 
-    // --- Main Table Event Delegation ---
     document.getElementById('product-table').addEventListener('click', async e => {
         const row = e.target.closest('tr');
-        if (!row) return;
+        if (!row || !row.dataset.id) return;
         const id = row.dataset.id;
         
-        // Handle Action Button Clicks
         if (e.target.closest('.action-btn')) {
+            e.stopPropagation(); // Stop click from bubbling to the row
             const button = e.target.closest('.action-btn');
             if (button.classList.contains('edit-btn')) {
                 const res = await fetch(`?action=get_product_details&id=${id}`); const { data } = await res.json();
@@ -239,14 +265,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('edit-quantity').value = data.quantity;
                 document.getElementById('edit-unit-price').value = data.unit_price;
                 document.getElementById('edit-warranty-period').value = data.warranty_period;
-                document.getElementById('edit-serial-number').value = data.serial_number;
+                document.getElementById('edit-serial-number').value = data.serial_numbers; // Populate read-only serials
                 await setupEditChainedDropdowns(data);
                 openModal(editModal);
             } else if (button.classList.contains('delete-btn')) {
                 document.getElementById('delete-purchase-id').value = id;
                 openModal(deleteModal);
             }
-        } else { // Handle Row Click for View Details
+        } else {
             const res = await fetch(`?action=get_product_details&id=${id}`);
             const { data } = await res.json();
             const body = document.getElementById('view-modal-body');
@@ -259,22 +285,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p><strong>Quantity:</strong> ${data.quantity}</p>
                     <p><strong>Unit Price:</strong> ${data.unit_price}</p>
                     <p><strong>Warranty:</strong> ${data.warranty_period}</p>
-                    <p><strong>Serial Number:</strong> ${data.serial_number}</p>
                     <p><strong>Created By:</strong> ${data.creator_name}</p>
-                    <p><strong>Created At:</strong> ${new Date(data.created_at).toLocaleString()}</p>
+                </div>
+                <div>
+                    <p><strong>Serial Numbers:</strong></p>
+                    <p class="text-gray-600 ${data.serial_numbers ? '' : 'italic'}">${data.serial_numbers || 'No serial numbers associated'}</p>
                 </div>`;
             openModal(viewModal);
         }
     });
     
-    // --- Modal Action Button Listeners ---
     document.getElementById('edit-update-btn').addEventListener('click', async () => {
         const updatedData = {
             purchase_id: document.getElementById('edit-purchase-id').value,
             category_id: document.getElementById('edit-category-id').value, brand_id: document.getElementById('edit-brand-id').value, model_id: document.getElementById('edit-model-id').value,
             vendor_id: document.getElementById('edit-vendor-id').value, purchase_date: document.getElementById('edit-purchase-date').value, invoice_number: document.getElementById('edit-invoice-number').value,
             quantity: document.getElementById('edit-quantity').value, unit_price: document.getElementById('edit-unit-price').value,
-            warranty_period: document.getElementById('edit-warranty-period').value, serial_number: document.getElementById('edit-serial-number').value,
+            warranty_period: document.getElementById('edit-warranty-period').value
+            // serial_number is NOT included
         };
         const res = await fetch('?action=update_product', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(updatedData) });
         const result = await res.json();
@@ -298,3 +326,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
+
