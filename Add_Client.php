@@ -13,12 +13,18 @@ if (!isset($_SESSION["user_id"])) {
 $current_user_id = $_SESSION['user_id'];
 // --- END: SESSION & SECURITY CHECKS ---
 
+// --- START: FLASH MESSAGE HANDLING ---
+// Check for messages from a previous redirect and clear them
+$successMessage = $_SESSION['successMessage'] ?? '';
+$errorMessage = $_SESSION['errorMessage'] ?? '';
+unset($_SESSION['successMessage'], $_SESSION['errorMessage']);
+// --- END: FLASH MESSAGE HANDLING ---
+
+
 require_once 'connection.php';
 
-// --- ADMIN ROLE CHECK REMOVED ---
-// All logged-in users can now access this page.
-
 // --- Part 1: API Request Handler (AJAX) ---
+// This block must come BEFORE the POST check
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $response = ['status' => 'error', 'message' => 'Invalid request'];
@@ -26,7 +32,8 @@ if (isset($_GET['action'])) {
     // Action: Search for Head Offices
     if ($_GET['action'] === 'search_head_office' && isset($_GET['query'])) {
         $query = trim($_GET['query']) . '%'; // Use LIKE 'query%' for speed
-        $sql = "SELECT client_head_id, Company_Name, Contact_Person FROM Client_Head WHERE Company_Name LIKE ? AND is_deleted = FALSE LIMIT 10";
+        // *** MODIFIED SQL to select Department instead of Contact_Person ***
+        $sql = "SELECT client_head_id, Company_Name, Department FROM Client_Head WHERE Company_Name LIKE ? AND is_deleted = FALSE LIMIT 10";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("s", $query);
         $stmt->execute();
@@ -45,7 +52,6 @@ if (isset($_GET['action'])) {
 }
 
 // --- Part 2: Handle Form Submissions (POST) ---
-$successMessage = ''; $errorMessage = '';
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $action = $_POST['action'] ?? '';
 
@@ -58,15 +64,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $address = !empty($_POST['Address']) ? trim($_POST['Address']) : null;
 
         if (empty($company_name)) {
-            $errorMessage = "Company Name is required to add a Head Office.";
+            $_SESSION['errorMessage'] = "Company Name is required to add a Head Office.";
         } else {
             $sql = "INSERT INTO Client_Head (Company_Name, Department, Contact_Person, Contact_Number, Address, created_by) VALUES (?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("sssssi", $company_name, $department, $contact_person, $contact_number, $address, $current_user_id);
             if ($stmt->execute()) {
-                $successMessage = "Head Office '$company_name' created successfully!";
+                $_SESSION['successMessage'] = "Head Office '$company_name' created successfully!";
             } else {
-                $errorMessage = "Error creating Head Office: " . $stmt->error;
+                $_SESSION['errorMessage'] = "Error creating Head Office: " . $stmt->error;
             }
             $stmt->close();
         }
@@ -84,22 +90,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $address = !empty($_POST['Address']) ? trim($_POST['Address']) : null;
 
         if (empty($client_head_id_fk) || empty($branch_name)) {
-            $errorMessage = "You must select a Head Office and provide a Branch Name.";
+            $_SESSION['errorMessage'] = "You must select a Head Office and provide a Branch Name.";
         } else {
             $sql = "INSERT INTO Client_Branch (client_head_id_fk, Branch_Name, Contact_Person1, Contact_Number1, Contact_Person2, Contact_Number2, Zone, Address, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("isssssssi", $client_head_id_fk, $branch_name, $contact_person1, $contact_number1, $contact_person2, $contact_number2, $zone, $address, $current_user_id);
             if ($stmt->execute()) {
-                $successMessage = "Branch '$branch_name' created successfully!";
+                $_SESSION['successMessage'] = "Branch '$branch_name' created successfully!";
             } else {
-                $errorMessage = "Error creating branch: " . $stmt->error;
+                $_SESSION['errorMessage'] = "Error creating branch: " . $stmt->error;
             }
             $stmt->close();
         }
     }
+    
+    $conn->close();
+    // --- START: P-R-G PATTERN ---
+    // Redirect back to this same page using a GET request
+    header("Location: " . $_SERVER["PHP_SELF"]);
+    exit();
+    // --- END: P-R-G PATTERN ---
 }
 
-$conn->close();
+// This connection close is for the GET request (page load) if it needed to fetch data,
+// but since this page doesn't fetch data on load, it's safe to remove.
+// $conn->close(); 
 ?>
 
 <!DOCTYPE html>
@@ -153,7 +168,7 @@ $conn->close();
                             <input type="text" id="Department" name="Department" class="w-full p-3 border border-gray-300 rounded-lg">
                         </div>
                         <div>
-                            <label for="Contact_Person" class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+                            <label for="Contact_Person" class="block text-sm font-medium text-gray-700 mb-1">Contact Person Name</label>
                             <input type="text" id="Contact_Person" name="Contact_Person" class="w-full p-3 border border-gray-300 rounded-lg">
                         </div>
                     </div>
@@ -218,7 +233,7 @@ $conn->close();
 
                     <div>
                         <label for="Zone" class="block text-sm font-medium text-gray-700 mb-1">Zone</label>
-                        <input type="text" id="Zone" name="Zone" class="w-full p-3 border border-gray-300 rounded-lg">
+                        <input type="text" id="Zone" name="Zone" placeholder="e.g., North, South-West" class="w-full p-3 border border-gray-300 rounded-lg">
                     </div>
                     
                     <div>
@@ -296,7 +311,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     result.data.forEach(item => {
                         const div = document.createElement('div');
                         div.className = 'p-3 border-t cursor-pointer';
-                        div.innerHTML = `<strong class="block">${item.Company_Name}</strong><small class="text-gray-500">${item.Contact_Person || ''}</small>`;
+                        // *** MODIFIED: Show Department instead of Contact_Person ***
+                        div.innerHTML = `<strong class="block">${item.Company_Name}</strong><small class="text-gray-500">${item.Department || ''}</small>`;
                         div.dataset.id = item.client_head_id;
                         div.dataset.name = item.Company_Name;
                         
