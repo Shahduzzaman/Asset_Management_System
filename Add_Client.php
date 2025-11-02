@@ -218,7 +218,7 @@ $conn->close();
 
                     <div>
                         <label for="Zone" class="block text-sm font-medium text-gray-700 mb-1">Zone</label>
-                        <input type="text" id="Zone" name="Zone" placeholder="e.g., North, South-West" class="w-full p-3 border border-gray-300 rounded-lg">
+                        <input type="text" id="Zone" name="Zone" class="w-full p-3 border border-gray-300 rounded-lg">
                     </div>
                     
                     <div>
