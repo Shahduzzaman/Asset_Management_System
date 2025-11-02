@@ -1,0 +1,67 @@
+-- =================================================================
+--  CREATE CLIENT HEAD AND BRANCH TABLES
+-- =================================================================
+-- This script creates two new tables for managing client information:
+-- 1. Client_Head: Stores the main client/company information.
+-- 2. Client_Branch: Stores individual branch locations for each client.
+-- =================================================================
+
+-- -----------------------------------------------------------------
+--  TABLE CREATION
+-- -----------------------------------------------------------------
+
+-- Client_Head Table
+-- Stores the primary "Head Office" or main client entity.
+CREATE TABLE Client_Head (
+    client_head_id INT PRIMARY KEY AUTO_INCREMENT,      -- Corresponds to 'PK (Auto-Increment)'
+    Company_Name VARCHAR(255) NOT NULL,                 -- Mandatory
+    Department VARCHAR(255) NULL,
+    Contact_Person VARCHAR(255) NULL,
+    Contact_Number VARCHAR(50) NULL,
+    Address TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Mandatory
+    created_by INT NOT NULL,                            -- Mandatory, FK to users
+    is_updated BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+
+-- Client_Branch Table
+-- Stores individual branches associated with a Client_Head.
+CREATE TABLE Client_Branch (
+    client_branch_id INT PRIMARY KEY AUTO_INCREMENT,    -- Corresponds to 'PK (Auto-Increment)'
+    client_head_id_fk INT NOT NULL,                     -- Mandatory, FK to Client_Head
+    Branch_Name VARCHAR(255) NOT NULL,                  -- Mandatory
+    Contact_Person1 VARCHAR(255) NULL,
+    Contact_Number1 VARCHAR(50) NULL,
+    Contact_Person2 VARCHAR(255) NULL,
+    Contact_Number2 VARCHAR(50) NULL,
+    Zone VARCHAR(100) NULL,
+    Address TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Mandatory
+    created_by INT NOT NULL,                            -- Mandatory, FK to users
+    is_updated BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+
+
+-- -----------------------------------------------------------------
+--  FOREIGN KEY CONSTRAINTS
+-- -----------------------------------------------------------------
+
+-- Constraints for 'Client_Head' table
+ALTER TABLE Client_Head 
+ADD CONSTRAINT fk_client_head_created_by 
+FOREIGN KEY (created_by) REFERENCES users(user_id);
+
+-- Constraints for 'Client_Branch' table
+ALTER TABLE Client_Branch 
+ADD CONSTRAINT fk_client_branch_head 
+FOREIGN KEY (client_head_id_fk) REFERENCES Client_Head(client_head_id);
+
+ALTER TABLE Client_Branch 
+ADD CONSTRAINT fk_client_branch_created_by 
+FOREIGN KEY (created_by) REFERENCES users(user_id);
+
+-- =================================================================
+--  End of Script
+-- =================================================================
