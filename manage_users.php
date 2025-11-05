@@ -41,7 +41,11 @@ if (isset($_GET['action'])) {
     // Action: Get details for a single user
     if ($_GET['action'] === 'get_user_details' && isset($_GET['id'])) {
         $user_id_to_edit = intval($_GET['id']);
-        $sql = "SELECT user_id, user_name, email, phone, role, status FROM users WHERE user_id = ?";
+        // *** MODIFIED: Joined Branch table to get branch_name ***
+        $sql = "SELECT u.user_id, u.user_name, u.email, u.phone, u.role, u.status, u.branch_id_fk, b.Name as branch_name 
+                FROM users u
+                LEFT JOIN Branch b ON u.branch_id_fk = b.branch_id
+                WHERE u.user_id = ?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $user_id_to_edit);
         $stmt->execute();
@@ -58,6 +62,8 @@ if (isset($_GET['action'])) {
         $data = json_decode(file_get_contents('php://input'), true);
         $user_id_to_update = intval($data['user_id']);
         $email = trim($data['email']);
+        // *** NEW: Get branch_id_fk, allow NULL ***
+        $branch_id_fk = !empty($data['branch_id_fk']) ? intval($data['branch_id_fk']) : null;
 
         // Basic Server-side email validation
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -67,10 +73,11 @@ if (isset($_GET['action'])) {
         elseif ($user_id_to_update === $current_user_id && ($data['status'] == 1 || $data['role'] == 0)) {
              $response['message'] = 'Error: An Admin cannot disable their own account or change their own role to User.';
         } else {
-            $sql = "UPDATE users SET user_name=?, email=?, phone=?, role=?, status=?, is_updated=TRUE WHERE user_id=?";
+            // *** MODIFIED: Added branch_id_fk = ? ***
+            $sql = "UPDATE users SET user_name=?, email=?, phone=?, role=?, status=?, branch_id_fk=?, is_updated=TRUE WHERE user_id=?";
             $stmt = $conn->prepare($sql);
-            // Added email (s) to bind_param, changed ssiii to sssiii
-            $stmt->bind_param("sssiii", $data['user_name'], $email, $data['phone'], $data['role'], $data['status'], $user_id_to_update);
+            // *** MODIFIED: Bind param string from "sssiii" to "sssiiii" ***
+            $stmt->bind_param("sssiiii", $data['user_name'], $email, $data['phone'], $data['role'], $data['status'], $branch_id_fk, $user_id_to_update);
             try {
                 if ($stmt->execute()) {
                     $response = ['status' => 'success', 'message' => 'User details updated.'];
@@ -116,8 +123,18 @@ if (isset($_GET['action'])) {
 
 // --- Part 2: Fetch initial data for page load ---
 header('Content-Type: text/html');
-$users_sql = "SELECT user_id, user_name, email, phone, role, status FROM users ORDER BY user_name";
+// Fetch Users
+$users_sql = "SELECT u.user_id, u.user_name, u.email, u.phone, u.role, u.status, b.Name as branch_name 
+              FROM users u
+              LEFT JOIN Branch b ON u.branch_id_fk = b.branch_id
+              WHERE u.is_deleted = FALSE
+              ORDER BY u.user_name";
 $users = $conn->query($users_sql)->fetch_all(MYSQLI_ASSOC);
+
+// *** NEW: Fetch all branches for the edit dropdown ***
+$branches_result = $conn->query("SELECT branch_id, Name FROM Branch WHERE is_deleted = FALSE ORDER BY Name");
+$branches = $branches_result ? $branches_result->fetch_all(MYSQLI_ASSOC) : [];
+
 $conn->close();
 ?>
 
@@ -128,7 +145,11 @@ $conn->close();
     <title>Manage Users</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style> body { font-family: 'Inter', sans-serif; } .modal { display: none; } .modal.is-open { display: flex; } </style>
+    <style> 
+        body { font-family: 'Inter', sans-serif; } 
+        .modal { display: none; } .modal.is-open { display: flex; }
+        #users-table tbody tr { cursor: pointer; } /* Add cursor for row click */
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
@@ -154,7 +175,7 @@ $conn->close();
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                             <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -165,7 +186,7 @@ $conn->close();
                         <tr class="hover:bg-gray-50 user-row" data-id="<?php echo $user['user_id']; ?>">
                             <td class="px-6 py-4 text-sm font-medium text-gray-900 user-name"><?php echo htmlspecialchars($user['user_name']); ?></td>
                             <td class="px-6 py-4 text-sm text-gray-600 user-email"><?php echo htmlspecialchars($user['email']); ?></td>
-                            <td class="px-6 py-4 text-sm text-gray-600 user-phone"><?php echo htmlspecialchars($user['phone']); ?></td>
+                            <td class="px-6 py-4 text-sm text-gray-600 user-branch"><?php echo htmlspecialchars($user['branch_name'] ?? 'N/A'); ?></td>
                             <td class="px-6 py-4 text-sm user-role"><?php echo $user['role'] == 1 ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Admin</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">User</span>'; ?></td>
                             <td class="px-6 py-4 text-sm user-status"><?php echo $user['status'] == 0 ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Disabled</span>'; ?></td>
                             <td class="px-6 py-4 text-center text-sm space-x-2">
@@ -182,6 +203,15 @@ $conn->close();
     </div>
 
     <!-- Modals -->
+    <!-- View Details Modal -->
+    <div id="view-details-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center"><h2 id="view-title" class="text-xl font-semibold">User Details</h2><button class="close-modal-btn text-2xl font-bold">&times;</button></div>
+            <div id="view-modal-body" class="p-6 space-y-3 text-sm overflow-y-auto"></div>
+            <div class="p-4 bg-gray-50 border-t text-right"><button class="close-modal-btn bg-gray-300 px-4 py-2 rounded-lg">Close</button></div>
+        </div>
+    </div>
+
     <div id="edit-user-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col">
             <div class="p-4 border-b flex justify-between items-center">
@@ -191,13 +221,25 @@ $conn->close();
             <div class="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
                 <input type="hidden" id="edit-user-id">
                 
-                <div><label class="block text-sm font-medium">Email Address</label><input type="email" id="edit-email" required class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div> 
+                <div><label class="block text-sm font-medium">Email Address</label><input type="email" id="edit-email" required class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
                 <div><label class="block text-sm font-medium">Full Name</label><input type="text" id="edit-user-name" required class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
                 <div><label class="block text-sm font-medium">Phone Number</label><input type="tel" id="edit-phone" class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div><label class="block text-sm font-medium">Role</label><select id="edit-role" class="mt-1 w-full p-2 border border-gray-300 rounded-md"><option value="0">User</option><option value="1">Admin</option></select></div>
                     <div><label class="block text-sm font-medium">Status</label><select id="edit-status" class="mt-1 w-full p-2 border border-gray-300 rounded-md"><option value="0">Active</option><option value="1">Disabled</option></select></div>
+                    <!-- *** NEW: Branch Dropdown *** -->
+                    <div>
+                        <label class="block text-sm font-medium">Branch</label>
+                        <select id="edit-branch-id" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                            <option value="">-- No Branch --</option>
+                            <?php foreach ($branches as $branch): ?>
+                                <option value="<?php echo $branch['branch_id']; ?>">
+                                    <?php echo htmlspecialchars($branch['Name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
                 
                 <!-- Password Reset Section -->
@@ -222,7 +264,8 @@ $conn->close();
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const editModal = document.getElementById('edit-user-modal');
-    const allModals = [editModal];
+    const viewModal = document.getElementById('view-details-modal'); // Added View Modal
+    const allModals = [editModal, viewModal]; // Added View Modal
     const searchBox = document.getElementById('search-box');
     const userTableBody = document.querySelector('#users-table tbody');
     const currentUserId = <?php echo $current_user_id; ?>; // Get current user ID for JS checks
@@ -262,40 +305,76 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => messageDiv.innerHTML = '', 5000);
     }
 
-    // --- Table Event Delegation for Edit Button ---
-    userTableBody.addEventListener('click', async e => {
-        const button = e.target.closest('button.edit-btn');
-        if (!button) return;
-        e.stopPropagation(); 
-        
-        const id = button.dataset.id;
+    // --- Function to open View Modal ---
+    async function openViewModal(id) {
         try {
             const res = await fetch(`?action=get_user_details&id=${id}`);
             const result = await res.json();
-            if (result.status === 'success') {
-                const data = result.data;
-                const userIdBeingEdited = parseInt(data.user_id); // Ensure it's a number
-                document.getElementById('edit-user-id').value = userIdBeingEdited;
-                document.getElementById('edit-email').value = data.email;
-                document.getElementById('edit-user-name').value = data.user_name;
-                document.getElementById('edit-phone').value = data.phone;
-                document.getElementById('edit-role').value = data.role;
-                document.getElementById('edit-status').value = data.status;
-                document.getElementById('edit-new-password').value = '';
-                document.getElementById('password-reset-message').textContent = '';
-
-                // Disable role/status change for self IF the user being edited IS the current user
-                const isAdminEditingSelf = (userIdBeingEdited === currentUserId);
-                document.getElementById('edit-role').disabled = isAdminEditingSelf;
-                document.getElementById('edit-status').disabled = isAdminEditingSelf;
-
-                openModal(editModal);
-            } else {
-                showGlobalMessage('Error fetching user details: ' + result.message, false);
-            }
+            if (result.status !== 'success') throw new Error(result.message);
+            
+            const data = result.data;
+            const body = document.getElementById('view-modal-body');
+            document.getElementById('view-title').textContent = `Details for: ${data.user_name}`;
+            
+            body.innerHTML = `
+                <p><strong>Full Name:</strong> ${data.user_name}</p>
+                <p><strong>Email:</strong> ${data.email}</p>
+                <p><strong>Phone:</strong> ${data.phone || 'N/A'}</p>
+                <p><strong>Branch:</strong> ${data.branch_name || 'N/A'}</p>
+                <p><strong>Role:</strong> ${data.role == 1 ? 'Admin' : 'User'}</p>
+                <p><strong>Status:</strong> ${data.status == 0 ? 'Active' : 'Disabled'}</p>
+            `;
+            openModal(viewModal);
         } catch (error) {
-            showGlobalMessage('Network or server error fetching details.', false);
-            console.error(error);
+            showGlobalMessage('Error fetching details: ' + error.message, false);
+        }
+    }
+
+    // --- Table Event Delegation for Edit Button ---
+    userTableBody.addEventListener('click', async e => {
+        const row = e.target.closest('tr.user-row');
+        if (!row) return; // Exit if click was not on a row
+        
+        const id = row.dataset.id;
+        const button = e.target.closest('button.edit-btn');
+
+        if (button) {
+            // --- EDIT BUTTON CLICKED ---
+            e.stopPropagation(); // Stop the row click from firing
+            
+            try {
+                const res = await fetch(`?action=get_user_details&id=${id}`);
+                const result = await res.json();
+                if (result.status === 'success') {
+                    const data = result.data;
+                    const userIdBeingEdited = parseInt(data.user_id);
+                    document.getElementById('edit-user-id').value = userIdBeingEdited;
+                    document.getElementById('edit-email').value = data.email;
+                    document.getElementById('edit-user-name').value = data.user_name;
+                    document.getElementById('edit-phone').value = data.phone;
+                    document.getElementById('edit-role').value = data.role;
+                    document.getElementById('edit-status').value = data.status;
+                    // *** NEW: Set branch dropdown value ***
+                    document.getElementById('edit-branch-id').value = data.branch_id_fk || ''; // Use '' for NULL
+                    
+                    document.getElementById('edit-new-password').value = '';
+                    document.getElementById('password-reset-message').textContent = '';
+
+                    const isAdminEditingSelf = (userIdBeingEdited === currentUserId);
+                    document.getElementById('edit-role').disabled = isAdminEditingSelf;
+                    document.getElementById('edit-status').disabled = isAdminEditingSelf;
+
+                    openModal(editModal);
+                } else {
+                    showGlobalMessage('Error fetching user details: ' + result.message, false);
+                }
+            } catch (error) {
+                showGlobalMessage('Network or server error fetching details.', false);
+                console.error(error);
+            }
+        } else {
+            // --- ROW CLICKED (not edit button) ---
+            openViewModal(id);
         }
     });
 
@@ -312,10 +391,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const updatedData = {
             user_id: userId,
             user_name: document.getElementById('edit-user-name').value,
-            email: document.getElementById('edit-email').value, // Added email
+            email: document.getElementById('edit-email').value,
             phone: document.getElementById('edit-phone').value,
             role: document.getElementById('edit-role').value,
             status: document.getElementById('edit-status').value,
+            // *** NEW: Get branch_id_fk value ***
+            branch_id_fk: document.getElementById('edit-branch-id').value || null // Send null if empty
         };
         let updateSuccess = false;
         try {
@@ -323,17 +404,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const resultUpdate = await resUpdate.json();
             updateSuccess = resultUpdate.status === 'success';
             if (!updateSuccess) {
-                // Show error message within the modal if update fails
                 alert('Error updating profile: ' + resultUpdate.message);
             }
         } catch (error) {
              alert('Network or server error updating profile.'); console.error(error);
         }
 
-
         // 2. Reset Password (if entered and profile update was successful)
         let passwordSuccess = true;
-        if (newPassword && updateSuccess) { // Only proceed if profile update worked
+        if (newPassword && updateSuccess) {
             try {
                 const resPass = await fetch('?action=reset_password', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: userId, new_password: newPassword }) });
                 const resultPass = await resPass.json();
@@ -359,23 +438,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if(updateSuccess && passwordSuccess) {
             closeModal(editModal);
             showGlobalMessage('User updated successfully!');
+            
             // Update table row dynamically
             const row = document.querySelector(`tr[data-id="${userId}"]`);
             if (row) {
+                const branchSelect = document.getElementById('edit-branch-id');
+                const selectedBranchName = branchSelect.value ? branchSelect.options[branchSelect.selectedIndex].text : 'N/A';
+                
                 row.querySelector('.user-name').textContent = updatedData.user_name;
-                row.querySelector('.user-email').textContent = updatedData.email; // Update email cell
+                row.querySelector('.user-email').textContent = updatedData.email;
                 row.querySelector('.user-phone').textContent = updatedData.phone;
+                row.querySelector('.user-branch').textContent = selectedBranchName; // Update branch name
                 row.querySelector('.user-role').innerHTML = updatedData.role == 1 ? '<span class="px-2 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Admin</span>' : '<span class="px-2 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">User</span>';
                 row.querySelector('.user-status').innerHTML = updatedData.status == 0 ? '<span class="px-2 text-xs font-semibold rounded-full bg-green-100 text-green-800">Active</span>' : '<span class="px-2 text-xs font-semibold rounded-full bg-red-100 text-red-800">Disabled</span>';
-                 // Re-apply filter in case the updated data changes visibility
+                 
                 filterTable();
             }
         } 
-        // If either failed, error messages are shown either via alert or in the modal
     });
 });
 </script>
 
 </body>
 </html>
-
