@@ -1,0 +1,17 @@
+-- =================================================================
+--  ADD BRANCH FOREIGN KEY TO USERS TABLE
+-- =================================================================
+-- This script adds a 'branch_id_fk' column to the 'users' table
+-- to assign each user to a specific branch.
+-- =================================================================
+
+ALTER TABLE users
+ADD COLUMN branch_id_fk INT NULL AFTER role,
+ADD CONSTRAINT fk_users_branch 
+    FOREIGN KEY (branch_id_fk) 
+    REFERENCES Branch(branch_id)
+    ON DELETE SET NULL; -- If a branch is deleted, set the user's branch to NULL
+
+-- =================================================================
+--  End of Script
+-- =================================================================
