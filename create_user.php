@@ -46,8 +46,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $phone = trim($_POST['phone']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
-    // Status is removed - will rely on DB default (0 = Active)
     $role = isset($_POST['role']) ? intval($_POST['role']) : 0;     // Default to 0 (User)
+    // *** NEW: Get branch_id, allow NULL ***
+    $branch_id_fk = !empty($_POST['branch_id']) ? intval($_POST['branch_id']) : null;
 
     // Basic server-side validation
     if (empty($user_name) || empty($email) || empty($password) || empty($confirm_password)) {
@@ -59,16 +60,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
 
-        // Include role, rely on DB default for status
-        // DB Schema already sets DEFAULT FALSE (0) for status
-        $sql = "INSERT INTO users (user_name, email, phone, password_hash, role, created_by) VALUES (?, ?, ?, ?, ?, ?)";
+        // *** MODIFIED: Added branch_id_fk to SQL INSERT ***
+        $sql = "INSERT INTO users (user_name, email, phone, password_hash, role, branch_id_fk, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)";
         
         $stmt = $conn->prepare($sql);
         
         if ($stmt) {
-            // Bind parameters: s = string, i = integer. Status removed.
-            // user_name (s), email (s), phone (s), password_hash (s), role (i), created_by (i)
-            $stmt->bind_param("ssssii", $user_name, $email, $phone, $password_hash, $role, $current_user_id);
+            // *** MODIFIED: Bind 7 params (ssssiii) ***
+            $stmt->bind_param("ssssiii", $user_name, $email, $phone, $password_hash, $role, $branch_id_fk, $current_user_id);
             
             if ($stmt->execute()) {
                 $successMessage = "New user created successfully!";
@@ -84,8 +83,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Error preparing statement: " . $conn->error;
         }
     }
-    $conn->close();
+    // *** MODIFICATION: Connection close moved down to allow branch fetching ***
 }
+
+// --- Fetch Branch List for Dropdown ---
+$branches_result = $conn->query("SELECT branch_id, Name FROM Branch WHERE is_deleted = FALSE ORDER BY Name");
+$branches = $branches_result ? $branches_result->fetch_all(MYSQLI_ASSOC) : [];
+$conn->close(); // Connection is now closed after all data is fetched
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -109,7 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
 
             <?php if ($successMessage): ?><div id="alert-box" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-6"><span><?php echo $successMessage; ?></span></div><?php endif; ?>
-            <?php if ($errorMessage): ?><div id="alert-box" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6"><span><?php echo $errorMessage; ?></span></div><?php endif; ?>
+            <?php if ($errorMessage): ?><div id="alert-box" class="bg-red-100 border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6"><span><?php echo $errorMessage; ?></span></div><?php endif; ?>
 
             <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="POST" class="space-y-6">
                 
@@ -128,14 +132,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <input type="tel" id="phone" name="phone" placeholder="+880 12 3456 7890" class="w-full p-3 border border-gray-300 rounded-lg">
                 </div>
 
-                 <div> 
-                     <label for="role" class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                     <select id="role" name="role" class="w-full p-3 border border-gray-300 rounded-lg">
-                         <option value="0" selected>User</option>
-                         <option value="1">Admin</option>
-                     </select>
-                 </div>
-                 <!-- Status Dropdown Removed -->
+                <!-- *** NEW: Branch and Role fields in a grid *** -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <label for="branch_id" class="block text-sm font-medium text-gray-700 mb-1">Assign to Branch</label>
+                        <select id="branch_id" name="branch_id" class="w-full p-3 border border-gray-300 rounded-lg">
+                            <option value="">-- No Branch Assigned --</option>
+                            <?php foreach ($branches as $branch): ?>
+                                <option value="<?php echo $branch['branch_id']; ?>">
+                                    <?php echo htmlspecialchars($branch['Name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div> 
+                         <label for="role" class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                         <select id="role" name="role" class="w-full p-3 border border-gray-300 rounded-lg">
+                             <option value="0" selected>User</option>
+                             <option value="1">Admin</option>
+                         </select>
+                    </div>
+                </div>
 
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password <span class="text-red-500">*</span></label>
@@ -187,4 +204,3 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 </body>
 </html>
-
