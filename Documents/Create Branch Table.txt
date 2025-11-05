@@ -1,0 +1,35 @@
+-- =================================================================
+--  CREATE BRANCH TABLE
+-- =================================================================
+-- This script creates the 'Branch' table to store information
+-- about the company's own branches or locations.
+-- =================================================================
+
+-- -----------------------------------------------------------------
+--  TABLE CREATION - Branch
+-- -----------------------------------------------------------------
+CREATE TABLE Branch (
+    branch_id INT PRIMARY KEY AUTO_INCREMENT,           -- Corresponds to 'PK (Auto-Increment)'
+    Name VARCHAR(255) NOT NULL,
+    Address TEXT NULL,
+    Email VARCHAR(255) NULL,
+    Phone VARCHAR(50) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Corresponds to 'created date'
+    created_by INT NOT NULL,                            -- Corresponds to 'created_by (user_ID-FK)'
+    is_updated BOOLEAN DEFAULT FALSE,                   -- Corresponds to 'is_updated (Binary value)'
+    is_deleted BOOLEAN DEFAULT FALSE                    -- Corresponds to 'is_deleted (Binary value)'
+);
+
+
+-- -----------------------------------------------------------------
+--  FOREIGN KEY CONSTRAINTS - Branch
+-- -----------------------------------------------------------------
+
+-- Constraints for 'Branch' table
+ALTER TABLE Branch 
+ADD CONSTRAINT fk_branch_created_by 
+FOREIGN KEY (created_by) REFERENCES users(user_id);
+
+-- =================================================================
+--  End of Script
+-- =================================================================
