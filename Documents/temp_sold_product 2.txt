@@ -1,0 +1,41 @@
+-- =================================================================
+--  CREATE temp_sold_product TABLE
+-- =================================================================
+-- This table temporarily holds products as they are added to a sale
+-- before the final invoice is generated.
+-- =================================================================
+
+-- Drop the old version first to avoid conflicts
+DROP TABLE IF EXISTS temp_sold_product;
+
+CREATE TABLE temp_sold_product (
+    temp_sold_id INT PRIMARY KEY AUTO_INCREMENT,
+    created_by INT NOT NULL,
+    
+    -- Client & Order Info (copied for consistency)
+    client_head_id_fk INT NULL,
+    client_branch_id_fk INT NULL,
+    sold_date DATE,
+    work_order_id_fk INT,
+    
+    -- Product Info
+    model_id_fk INT NOT NULL,
+    product_sl_id_fk INT NULL,          -- Stores the selected serial ID (if any)
+    Remarks TEXT NULL,
+    Avg_Max_Price VARCHAR(100) NULL,
+    Quantity INT NOT NULL,
+    Sold_Unit_Price DECIMAL(10, 2) NOT NULL,
+    
+    -- Constraints
+    CONSTRAINT fk_temp_sold_user FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_temp_sold_head FOREIGN KEY (client_head_id_fk) REFERENCES Client_Head(client_head_id) ON DELETE CASCADE,
+    CONSTRAINT fk_temp_sold_branch FOREIGN KEY (client_branch_id_fk) REFERENCES Client_Branch(client_branch_id) ON DELETE CASCADE,
+    CONSTRAINT fk_temp_sold_work_order FOREIGN KEY (work_order_id_fk) REFERENCES Work_Order(work_order_id) ON DELETE CASCADE,
+    CONSTRAINT fk_temp_sold_model FOREIGN KEY (model_id_fk) REFERENCES models(model_id) ON DELETE CASCADE,
+    CONSTRAINT fk_temp_sold_sl FOREIGN KEY (product_sl_id_fk) REFERENCES product_sl(sl_id) ON DELETE SET NULL
+);
+
+-- =================================================================
+--  End of Script
+-- =================================================================
+
