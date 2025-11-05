@@ -1,0 +1,107 @@
+-- =================================================================
+--  CREATE INVOICE, WORK ORDER, AND SOLD PRODUCT TABLES (v3)
+-- =================================================================
+-- This script creates tables for managing sales and orders.
+-- NOTE: This script DROPS the old Sold_Product table to recreate it
+-- with the new, streamlined structure.
+-- =================================================================
+
+-- -----------------------------------------------------------------
+--  TABLE CREATION
+-- -----------------------------------------------------------------
+
+-- 1: Invoice Table (No changes, assuming it exists)
+CREATE TABLE IF NOT EXISTS Invoice (
+    invoice_id INT PRIMARY KEY AUTO_INCREMENT,
+    Invoice_No VARCHAR(255) NOT NULL UNIQUE,
+    IncludingTax_TotalPrice DECIMAL(10, 2) NOT NULL,
+    ExcludingTax_TotalPrice DECIMAL(10, 2) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by INT NOT NULL,
+    is_updated BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    CONSTRAINT fk_invoice_created_by FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+
+-- 2: Work_Order Table (No changes, assuming it exists)
+CREATE TABLE IF NOT EXISTS Work_Order (
+    work_order_id INT PRIMARY KEY AUTO_INCREMENT,
+    Order_No VARCHAR(255) NOT NULL UNIQUE,
+    Order_Date DATE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by INT NOT NULL,
+    is_updated BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    CONSTRAINT fk_work_order_created_by FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+
+
+-- 3: Sold_Product Table (Re-creation)
+-- Drop the old version first to avoid conflicts
+DROP TABLE IF EXISTS Sold_Product;
+
+-- Create the new Sold_Product table with the streamlined columns
+CREATE TABLE Sold_Product (
+    sold_product_id INT PRIMARY KEY AUTO_INCREMENT,
+    client_head_id_fk INT NULL,                 -- FK to Client_Head
+    client_branch_id_fk INT NULL,               -- FK to Client_Branch
+    sold_date DATE NOT NULL,
+    work_order_id_fk INT NOT NULL,
+    product_sl_id_fk INT NULL,                  -- FK to product_sl (for a specific serial)
+    model_id_fk INT NULL,                       -- FK to models (links to brand/category)
+    Remarks TEXT NULL,
+    Avg_Max_Price VARCHAR(100) NULL,
+    Quantity INT NOT NULL DEFAULT 1,
+    Sold_Unit_Price DECIMAL(10, 2) NOT NULL,
+    invoice_id_fk INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by INT NOT NULL,
+    is_updated BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    
+    -- Ensures a sale is linked to one client entity (Head or Branch)
+    CONSTRAINT chk_client_link CHECK (
+        (client_head_id_fk IS NOT NULL AND client_branch_id_fk IS NULL) OR 
+        (client_head_id_fk IS NULL AND client_branch_id_fk IS NOT NULL)
+    )
+);
+
+
+-- -----------------------------------------------------------------
+--  FOREIGN KEY CONSTRAINTS for Sold_Product
+-- -----------------------------------------------------------------
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_client_head 
+FOREIGN KEY (client_head_id_fk) REFERENCES Client_Head(client_head_id);
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_client_branch 
+FOREIGN KEY (client_branch_id_fk) REFERENCES Client_Branch(client_branch_id);
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_work_order 
+FOREIGN KEY (work_order_id_fk) REFERENCES Work_Order(work_order_id);
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_product_sl 
+FOREIGN KEY (product_sl_id_fk) REFERENCES product_sl(sl_id)
+ON DELETE SET NULL; -- If a serial is deleted, keep the sale record
+
+ALTER TABLE Sold_Product
+ADD CONSTRAINT fk_sold_model
+FOREIGN KEY (model_id_fk) REFERENCES models(model_id)
+ON DELETE SET NULL; -- If a model is deleted, keep the sale record
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_invoice 
+FOREIGN KEY (invoice_id_fk) REFERENCES Invoice(invoice_id);
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_created_by 
+FOREIGN KEY (created_by) REFERENCES users(user_id);
+
+-- =================================================================
+--  End of Script
+-- =================================================================
+
