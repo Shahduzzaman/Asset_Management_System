@@ -1,0 +1,109 @@
+-- =================================================================
+--  CREATE INVOICE, WORK ORDER, AND SOLD PRODUCT TABLES
+-- =================================================================
+-- This script creates new tables for managing sales, work orders,
+-- and linking sold products to clients and inventory.
+-- =================================================================
+
+-- -----------------------------------------------------------------
+--  TABLE CREATION
+-- -----------------------------------------------------------------
+
+-- 1: Invoice Table
+CREATE TABLE Invoice (
+    invoice_id INT PRIMARY KEY AUTO_INCREMENT,
+    Invoice_No VARCHAR(255) NOT NULL UNIQUE,
+    IncludingTax_TotalPrice DECIMAL(10, 2) NOT NULL,
+    ExcludingTax_TotalPrice DECIMAL(10, 2) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by INT NOT NULL,
+    is_updated BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+
+-- 2: Work_Order Table
+CREATE TABLE Work_Order (
+    work_order_id INT PRIMARY KEY AUTO_INCREMENT,
+    Order_No VARCHAR(255) NOT NULL UNIQUE,
+    Order_Date DATE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by INT NOT NULL,
+    is_updated BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+
+-- 3: Sold_Product Table
+CREATE TABLE Sold_Product (
+    sold_product_id INT PRIMARY KEY AUTO_INCREMENT,
+    
+    -- MODIFICATION: Added client_head_id_fk and made client_branch_id_fk nullable
+    -- This allows a sale to be linked to EITHER a head office OR a branch.
+    client_head_id_fk INT NULL,                 -- FK to Client_Head
+    client_branch_id_fk INT NULL,               -- FK to Client_Branch
+    
+    sold_date DATE NOT NULL,
+    work_order_id_fk INT NOT NULL,
+    product_sl_id_fk INT NULL,                  -- FK to product_sl (for serialized items)
+    Product_Details TEXT NULL,                  -- For non-serialized items or manual details
+    Avg_Max_Price VARCHAR(100) NULL,
+    Sold_Unit_Price DECIMAL(10, 2) NOT NULL,
+    invoice_id_fk INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by INT NOT NULL,
+    is_updated BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    
+    -- This check ensures that a sale is linked to one (and only one) client entity.
+    CONSTRAINT chk_client_link CHECK (
+        (client_head_id_fk IS NOT NULL AND client_branch_id_fk IS NULL) OR 
+        (client_head_id_fk IS NULL AND client_branch_id_fk IS NOT NULL)
+    )
+);
+
+
+-- -----------------------------------------------------------------
+--  FOREIGN KEY CONSTRAINTS
+-- -----------------------------------------------------------------
+
+-- Constraints for 'Invoice' table
+ALTER TABLE Invoice 
+ADD CONSTRAINT fk_invoice_created_by 
+FOREIGN KEY (created_by) REFERENCES users(user_id);
+
+-- Constraints for 'Work_Order' table
+ALTER TABLE Work_Order 
+ADD CONSTRAINT fk_work_order_created_by 
+FOREIGN KEY (created_by) REFERENCES users(user_id);
+
+-- Constraints for 'Sold_Product' table
+
+-- MODIFICATION: Dropped old constraint, added two new ones for head and branch
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_client_head
+FOREIGN KEY (client_head_id_fk) REFERENCES Client_Head(client_head_id);
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_client_branch 
+FOREIGN KEY (client_branch_id_fk) REFERENCES Client_Branch(client_branch_id);
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_work_order 
+FOREIGN KEY (work_order_id_fk) REFERENCES Work_Order(work_order_id);
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_product_sl 
+FOREIGN KEY (product_sl_id_fk) REFERENCES product_sl(sl_id)
+ON DELETE SET NULL; -- If a serial is deleted, keep the sale record
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_invoice 
+FOREIGN KEY (invoice_id_fk) REFERENCES Invoice(invoice_id);
+
+ALTER TABLE Sold_Product 
+ADD CONSTRAINT fk_sold_created_by 
+FOREIGN KEY (created_by) REFERENCES users(user_id);
+
+-- =================================================================
+--  End of Script
+-- =================================================================
+
