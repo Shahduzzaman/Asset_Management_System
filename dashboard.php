@@ -34,7 +34,8 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
-    <main class="w-full max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg text-center">
+    <!-- Increased max-width to 4xl to better fit buttons -->
+    <main class="w-full max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg text-center">
 
         <!-- Header -->
         <h1 class="text-3xl font-bold text-gray-800 mb-2">Asset Management System</h1>
@@ -48,7 +49,10 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
         <?php endif; ?>
 
         <!-- Button Container -->
+        <!-- Set to 4 columns on large screens -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <!-- General User Buttons -->
             <a href="product_setup.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition-transform transform hover:scale-105 duration-300">
                 Product Setup
             </a>
@@ -58,16 +62,20 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
             <a href="Add_Client.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition-transform transform hover:scale-105 duration-300">
                 Add Client
             </a>
+            <a href="add_work_order.php" class="bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition-transform transform hover:scale-105 duration-300">
+                Add Work Order
+            </a>
+            
             <a href="purchase_product.php" class="bg-green-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-green-700 transition-transform transform hover:scale-105 duration-300">
                 Purchased Product
             </a>
              <a href="make_payment.php" class="bg-green-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-green-700 transition-transform transform hover:scale-105 duration-300">
                 Make Payment
             </a>
+
             <a href="product_list.php" class="bg-cyan-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-cyan-700 transition-transform transform hover:scale-105 duration-300">
                 View Product
             </a>
-            <!-- NEW BUTTON ADDED HERE -->
              <a href="view_vendor.php" class="bg-cyan-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-cyan-700 transition-transform transform hover:scale-105 duration-300">
                 View Vendors
             </a>
@@ -77,6 +85,14 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
              <a href="ledger.php" class="bg-cyan-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-cyan-700 transition-transform transform hover:scale-105 duration-300">
                 Vendor Ledger
             </a>
+            
+            <a href="my_profile.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
+                My Profile
+            </a>
+            <a href="trash.php" class="bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-gray-700 transition-transform transform hover:scale-105 duration-300">
+                Trash
+            </a>
+
 
             <?php // *** START: Conditional Links for Admin *** ?>
             <?php if ($user_role === 1): ?>
@@ -86,15 +102,15 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
                 <a href="manage_users.php" class="bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-purple-700 transition-transform transform hover:scale-105 duration-300">
                     Manage Users
                 </a>
+                <a href="add_branch.php" class="bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-purple-700 transition-transform transform hover:scale-105 duration-300">
+                    Add Branch
+                </a>
+                <a href="manage_branch.php" class="bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-purple-700 transition-transform transform hover:scale-105 duration-300">
+                    Manage Branch
+                </a>
             <?php endif; ?>
             <?php // *** END: Conditional Links for Admin *** ?>
 
-            <a href="trash.php" class="bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-gray-700 transition-transform transform hover:scale-105 duration-300">
-                Trash
-            </a>
-            <a href="my_profile.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
-                My Profile
-            </a>
         </div>
         
         <!-- Logout Button -->
@@ -118,4 +134,3 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
     </script>
 </body>
 </html>
-
