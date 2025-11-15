@@ -426,6 +426,7 @@ $(document).ready(() => {
             return;
         }
         
+        
         // Stock check for non-serial
         if (!isSerialSale && quantity > available) {
             showToast(`Quantity (${quantity}) exceeds available stock (${available}).`, 'error');
