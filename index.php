@@ -14,6 +14,9 @@ $reason = $_GET['reason'] ?? '';
 if ($reason === 'idle') {
     $errorMessage = "Your session has expired due to inactivity. Please log in again.";
 }
+if ($reason === 'branch_missing') {
+    $errorMessage = "You must be logged in with an assigned branch to access that page.";
+}
 
 
 // Check if the form has been submitted
@@ -26,8 +29,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $password = $_POST['password'];
 
     // Prepare SQL statement to prevent SQL injection
-    // *** Added 'role' to the SELECT statement ***
-    $sql = "SELECT user_id, user_name, password_hash, role FROM users WHERE email = ? AND is_deleted = FALSE AND status = FALSE"; // status = FALSE (0) means Active
+    // *** FIX 1: Changed 'b.branch_name' to 'b.Name AS branch_name' ***
+    $sql = "SELECT 
+                u.user_id, u.user_name, u.password_hash, u.role,
+                u.branch_id_fk, b.Name AS branch_name
+            FROM users AS u
+            LEFT JOIN branch AS b ON u.branch_id_fk = b.branch_id
+            WHERE u.email = ? AND u.is_deleted = FALSE AND u.status = FALSE";
     
     $stmt = $conn->prepare($sql);
     
@@ -43,8 +51,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // Check if a user with that email exists and is active
         if ($stmt->num_rows == 1) {
-            // Bind the result variables *** Added $user_role ***
-            $stmt->bind_result($user_id, $user_name, $password_hash, $user_role);
+            // *** FIX 2: This line is now correct because we used 'AS branch_name' ***
+            $stmt->bind_result($user_id, $user_name, $password_hash, $user_role, $branch_id, $branch_name);
             
             // Fetch the result
             if ($stmt->fetch()) {
@@ -55,7 +63,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION["user_id"] = $user_id;
                     $_SESSION["user_name"] = $user_name;
                     $_SESSION['last_activity'] = time(); // Start the session timer
-                    $_SESSION['user_role'] = $user_role; // *** STORE USER ROLE IN SESSION ***
+                    $_SESSION['user_role'] = $user_role;
+                    
+                    // *** FIX 3: This line is also correct. ***
+                    $_SESSION['branch_id'] = $branch_id; 
+                    $_SESSION['branch_name'] = $branch_name;
                     
                     // Redirect to a protected dashboard page
                     header("Location: dashboard.php");
@@ -105,7 +117,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="flex flex-col items-center">
             <!-- Company Logo -->
             <div class="mb-4">
-                <img src="images/logo.png" alt="Protection One AMS Logo" class="h-16 w-auto">
+                <img src="images/logo.png" alt="Protection One AMS Logo" class="h-16 w-auto" onerror="this.style.display='none'">
             </div>
 
             <!-- Heading -->
@@ -193,4 +205,3 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 </body>
 </html>
-
