@@ -52,10 +52,15 @@ $page_title = "Add Products to Cart";
         .toast.error { background-color: #D9534F; }
         .toast.success { background-color: #5CB85C; }
 
-        /* Style for the multi-select box */
-        select[multiple] {
-            height: 150px; /* Show more items */
-        }
+        /* Serial list box */
+        #serial-search { width: 100%; padding: .5rem; border: 1px solid #d1d5db; border-radius: .375rem; }
+        #serial-list { max-height: 160px; overflow-y: auto; padding: .5rem; border: 1px solid #e5e7eb; border-radius: .375rem; background: #fff; }
+        .serial-item { display: flex; align-items: center; gap: .5rem; padding: .25rem .25rem; border-radius: .25rem; }
+        .serial-item.hidden { display: none; }
+        .serial-item label { cursor: pointer; }
+
+        /* Small helper for price labels */
+        .price-small { font-size: .85rem; color: #6b7280; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans leading-normal tracking-normal">
@@ -111,7 +116,7 @@ $page_title = "Add Products to Cart";
                         <!-- Stock/Price/Qty Info -->
                         <div class="space-y-4">
                             <!-- Stock/Price Info -->
-                            <div class="grid grid-cols-2 gap-2 bg-white p-3 rounded-lg border">
+                            <div class="grid grid-cols-3 gap-2 bg-white p-3 rounded-lg border items-center">
                                 <div class="text-center">
                                     <span class="block text-xs font-medium text-gray-500">Available Stock</span>
                                     <span id="stock-available" class="block text-lg font-bold text-blue-700">0</span>
@@ -119,6 +124,12 @@ $page_title = "Add Products to Cart";
                                 <div class="text-center border-l">
                                     <span class="block text-xs font-medium text-gray-500">Avg. Pur. Price</span>
                                     <span id="price-avg" class="block text-lg font-bold text-gray-700">0.00</span>
+                                    <span class="block price-small">Avg</span>
+                                </div>
+                                <div class="text-center border-l">
+                                    <span class="block text-xs font-medium text-gray-500">Max Pur. Price</span>
+                                    <span id="price-max" class="block text-lg font-bold text-gray-700">0.00</span>
+                                    <span class="block price-small">Max</span>
                                 </div>
                             </div>
                             
@@ -135,13 +146,14 @@ $page_title = "Add Products to Cart";
                             </div>
                         </div>
                         
-                        <!-- Serial Number -->
+                        <!-- Serial Number (searchable) -->
                         <div>
                             <label for="product-serial" class="block text-sm font-medium text-gray-700">Serial Number (Optional)</label>
-                            <select id="product-serial" multiple class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" disabled>
-                                <!-- Options will be loaded by JS -->
-                            </select>
-                            <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple serials. Selecting serials will override quantity.</p>
+                            <input id="serial-search" type="text" placeholder="Search serial (type to filter)" class="mt-1 mb-2" />
+                            <div id="serial-list" class="mt-0">
+                                <!-- Serial checkboxes will be loaded here -->
+                                <div class="text-xs text-gray-500">Select serial(s) to add exact items — selecting serials will override quantity.</div>
+                            </div>
                         </div>
                     </div>
                     
@@ -167,13 +179,18 @@ $(document).ready(() => {
     const $catSelect = $('#product-category');
     const $brandSelect = $('#product-brand');
     const $modelSelect = $('#product-model');
-    const $serialSelect = $('#product-serial');
+    const $serialSearch = $('#serial-search');
+    const $serialList = $('#serial-list');
     const $quantityInput = $('#product-quantity');
     const $unitPriceInput = $('#product-unit-price');
     const $stockDisplay = $('#stock-available');
     const $avgPriceDisplay = $('#price-avg');
+    const $maxPriceDisplay = $('#price-max');
     const $addToCartBtn = $('#add-to-cart-btn');
     const $toast = $('#toast-notification');
+
+    // Hold current serials (array of {sl_id, product_sl})
+    let currentSerials = [];
 
     // --- Helper Functions ---
     function showToast(message, type = 'error') {
@@ -196,16 +213,17 @@ $(document).ready(() => {
         } catch (e) { /* Not JSON */ }
         showToast(`${message}: ${serverMessage}`, 'error');
     }
-    
-    // --- Product Selection Logic ---
 
     function resetProductForm() {
         $catSelect.val('');
         $brandSelect.empty().append('<option value="">-- Select Brand --</option>').prop('disabled', true);
         $modelSelect.empty().append('<option value="">-- Select Model --</option>').prop('disabled', true);
-        $serialSelect.empty().append('<option value="">-- Select Serial (if applicable) --</option>').prop('disabled', true);
+        $serialSearch.val('');
+        $serialList.html('<div class="text-xs text-gray-500">Select serial(s) to add exact items — selecting serials will override quantity.</div>');
+        currentSerials = [];
         $stockDisplay.text('0');
         $avgPriceDisplay.text('0.00');
+        $maxPriceDisplay.text('0.00');
         $quantityInput.val('1').prop('disabled', false);
         $unitPriceInput.val('');
     }
@@ -215,9 +233,11 @@ $(document).ready(() => {
         // Reset everything below
         $brandSelect.empty().append('<option value="">-- Select Brand --</option>').prop('disabled', true);
         $modelSelect.empty().append('<option value="">-- Select Model --</option>').prop('disabled', true);
-        $serialSelect.empty().append('<option value="">-- Select Serial --</option>').prop('disabled', true);
+        $serialSearch.val('');
+        $serialList.html('<div class="text-xs text-gray-500">Select serial(s) to add exact items — selecting serials will override quantity.</div>');
         $stockDisplay.text('0');
         $avgPriceDisplay.text('0.00');
+        $maxPriceDisplay.text('0.00');
         
         if (catId) {
             $brandSelect.prop('disabled', true).html('<option value="">Loading...</option>');
@@ -230,7 +250,7 @@ $(document).ready(() => {
                         });
                         $brandSelect.prop('disabled', false);
                     } else {
-                        showToast(data.message);
+                        showToast(data.message || 'Failed to load brands');
                     }
                 })
                 .fail((xhr, status, error) => logError('Error loading brands', xhr, status, error));
@@ -241,9 +261,11 @@ $(document).ready(() => {
         const brandId = $(this).val();
         // Reset model and serial
         $modelSelect.empty().append('<option value="">-- Select Model --</option>').prop('disabled', true);
-        $serialSelect.empty().append('<option value="">-- Select Serial --</option>').prop('disabled', true);
+        $serialSearch.val('');
+        $serialList.html('<div class="text-xs text-gray-500">Select serial(s) to add exact items — selecting serials will override quantity.</div>');
         $stockDisplay.text('0');
         $avgPriceDisplay.text('0.00');
+        $maxPriceDisplay.text('0.00');
         
         if (brandId) {
             $modelSelect.prop('disabled', true).html('<option value="">Loading...</option>');
@@ -256,7 +278,7 @@ $(document).ready(() => {
                         });
                         $modelSelect.prop('disabled', false);
                     } else {
-                        showToast(data.message);
+                        showToast(data.message || 'Failed to load models');
                     }
                 })
                 .fail((xhr, status, error) => logError('Error loading models', xhr, status, error));
@@ -266,73 +288,121 @@ $(document).ready(() => {
     $modelSelect.on('change', function() {
         const modelId = $(this).val();
         // Reset serials and info
-        $serialSelect.empty().append('<option value="">Loading Serials...</option>').prop('disabled', true);
+        $serialSearch.val('');
+        $serialList.html('<div class="text-xs text-gray-500">Loading serials...</div>');
         $stockDisplay.text('...');
         $avgPriceDisplay.text('...');
+        $maxPriceDisplay.text('...');
         $quantityInput.val(1).prop('disabled', false); // Reset quantity
         
         if (modelId) {
-            // Fetch all 3 pieces of data in parallel
+            // Fetch stock, price, and serials in parallel
             const stockRequest = $.get('cart_ajax.php?action=available_quantity', { model_id: modelId });
             const priceRequest = $.get('cart_ajax.php?action=get_avg_max_price', { model_id: modelId });
             const serialRequest = $.get('cart_ajax.php?action=get_serials_for_model', { model_id: modelId });
 
             $.when(stockRequest, priceRequest, serialRequest)
                 .done((stockData, priceData, serialData) => {
+                    // stockData, priceData, serialData are arrays [data, status, xhr] — we want data at [0]
+                    const stock = stockData[0];
+                    const price = priceData[0];
+                    const serials = serialData[0];
+
                     // 1. Stock (non-serialled)
-                    if (stockData[0].status === 'success') {
-                        $stockDisplay.text(stockData[0].available);
+                    if (stock.status === 'success') {
+                        $stockDisplay.text(stock.available);
                     } else {
                         $stockDisplay.text('0');
-                        showToast(stockData[0].message);
+                        showToast(stock.message || 'Stock unavailable');
                     }
                     
-                    // 2. Prices
-                    if (priceData[0].status === 'success') {
-                        const avg = parseFloat(priceData[0].avg).toFixed(2);
+                    // 2. Prices (avg & max)
+                    if (price.status === 'success') {
+                        const avg = parseFloat(price.avg).toFixed(2);
+                        const max = parseFloat(price.max).toFixed(2);
                         $avgPriceDisplay.text(avg);
+                        $maxPriceDisplay.text(max);
                         if (!$unitPriceInput.val()) {
-                            $unitPriceInput.val(avg); // Auto-fill price
+                            $unitPriceInput.val(avg); // Auto-fill price with average by default
                         }
                     } else {
                         $avgPriceDisplay.text('0.00');
-                        showToast(priceData[0].message);
+                        $maxPriceDisplay.text('0.00');
+                        showToast(price.message || 'Price unavailable');
                     }
                     
-                    // 3. Serials
-                    if (serialData[0].status === 'success') {
-                        $serialSelect.empty(); // Clear "loading"
-                        if (serialData[0].serials.length > 0) {
-                            serialData[0].serials.forEach(serial => {
-                                $serialSelect.append(`<option value="${serial.sl_id}">${serial.product_sl}</option>`);
-                            });
-                        } else {
-                            $serialSelect.append('<option value="" disabled>No available serials</option>');
-                        }
-                        $serialSelect.prop('disabled', false);
+                    // 3. Serials (populate searchable checkbox list)
+                    if (serials.status === 'success') {
+                        currentSerials = serials.serials || [];
+                        renderSerialList(currentSerials);
                     } else {
-                        showToast(serialData[0].message);
-                        $serialSelect.empty().append('<option value="">Error loading</option>');
+                        currentSerials = [];
+                        $serialList.html('<div class="text-xs text-red-500">Error loading serials</div>');
+                        showToast(serials.message || 'Error loading serials');
                     }
                 })
                 .fail((xhr, status, error) => {
                     logError('Failed to load product details', xhr, status, error);
                     $stockDisplay.text('ERR');
                     $avgPriceDisplay.text('ERR');
-                    $serialSelect.empty().append('<option value="">Error</option>');
+                    $maxPriceDisplay.text('ERR');
+                    $serialList.html('<div class="text-xs text-red-500">Error loading</div>');
                 });
+        } else {
+            // If no model selected, clear serials/prices
+            currentSerials = [];
+            $serialList.html('<div class="text-xs text-gray-500">Select a model to see serials</div>');
+            $stockDisplay.text('0');
+            $avgPriceDisplay.text('0.00');
+            $maxPriceDisplay.text('0.00');
         }
     });
 
-    // *** NEW LOGIC FOR MULTI-SELECT ***
-    // When serial is selected, update and lock quantity
-    $serialSelect.on('change', function() {
-        const selectedSerials = $(this).val(); // This is now an array
-        if (selectedSerials && selectedSerials.length > 0) {
-            $quantityInput.val(selectedSerials.length).prop('disabled', true);
-        } else {
-            $quantityInput.val(1).prop('disabled', false);
+    // Render serials as checkbox list
+    function renderSerialList(serialsArr) {
+        if (!serialsArr || serialsArr.length === 0) {
+            $serialList.html('<div class="text-xs text-gray-500">No available serials</div>');
+            return;
         }
+        const html = [];
+        serialsArr.forEach(s => {
+            // each serial item: checkbox with data-id
+            html.push(
+                `<div class="serial-item" data-sl="${escapeHtml(s.sl_id)}" data-text="${escapeHtml(s.product_sl)}">` +
+                    `<input type="checkbox" class="serial-checkbox" id="sl_${escapeHtml(s.sl_id)}" value="${escapeHtml(s.sl_id)}" />` +
+                    `<label for="sl_${escapeHtml(s.sl_id)}" class="text-sm">${escapeHtml(s.product_sl)}</label>` +
+                `</div>`
+            );
+        });
+        $serialList.html(html.join(''));
+
+        // bind change handlers for checkboxes
+        $serialList.find('.serial-checkbox').on('change', function() {
+            const checkedCount = $serialList.find('.serial-checkbox:checked').length;
+            if (checkedCount > 0) {
+                $quantityInput.val(checkedCount).prop('disabled', true);
+            } else {
+                $quantityInput.val(1).prop('disabled', false);
+            }
+        });
+    }
+
+    // Simple client-side serial search/filter
+    $serialSearch.on('input', function() {
+        const term = String($(this).val() || '').trim().toLowerCase();
+        if (!term) {
+            // show all
+            $serialList.find('.serial-item').removeClass('hidden');
+            return;
+        }
+        $serialList.find('.serial-item').each(function() {
+            const text = $(this).attr('data-text') || '';
+            if (text.toLowerCase().indexOf(term) !== -1) {
+                $(this).removeClass('hidden');
+            } else {
+                $(this).addClass('hidden');
+            }
+        });
     });
 
     // --- Add to Cart ---
@@ -346,7 +416,8 @@ $(document).ready(() => {
         
         const quantity = parseInt($quantityInput.val());
         const available = parseInt($stockDisplay.text());
-        const serialIds = $serialSelect.val(); // This is an array or null
+        // collect selected serial ids (array)
+        const serialIds = $serialList.find('.serial-checkbox:checked').map(function(){ return $(this).val(); }).get();
         const isSerialSale = (serialIds && serialIds.length > 0);
         
         if (isNaN(quantity) || quantity <= 0) {
@@ -355,7 +426,7 @@ $(document).ready(() => {
             return;
         }
         
-        // Stock check
+        // Stock check for non-serial
         if (!isSerialSale && quantity > available) {
             showToast(`Quantity (${quantity}) exceeds available stock (${available}).`, 'error');
             $quantityInput.focus();
@@ -372,7 +443,8 @@ $(document).ready(() => {
         // Prepare data
         const postData = {
             model_id_fk: modelId,
-            product_sl_id_fk: serialIds, // Send the array of serials
+            // jQuery will correctly send arrays when field value is an array
+            product_sl_id_fk: serialIds,
             Quantity: quantity,
             Sold_Unit_Price: unitPrice
         };
@@ -388,6 +460,7 @@ $(document).ready(() => {
                     $brandSelect.val('');
                     $catSelect.val('');
                     $unitPriceInput.val('');
+                    $serialSearch.val('');
                 } else {
                     showToast(data.message || 'Failed to add item.', 'error');
                     // If add fails, we must refresh serials/stock
@@ -403,6 +476,17 @@ $(document).ready(() => {
                 $addToCartBtn.prop('disabled', false).html('<i class="fas fa-cart-plus mr-2"></i>Add to Cart');
             });
     });
+
+    // Utility: escape HTML for safe insertion
+    function escapeHtml(str) {
+        if (str === undefined || str === null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
 });
 </script>
 
