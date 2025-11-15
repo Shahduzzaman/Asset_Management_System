@@ -10,10 +10,26 @@ $_SESSION['last_activity'] = time();
 if (!isset($_SESSION["user_id"])) {
     header("Location: index.php"); exit();
 }
+$current_user_id = $_SESSION['user_id'];
 // --- END: SESSION & SECURITY CHECKS ---
 
 require_once 'connection.php';
-$current_user_id = $_SESSION['user_id'];
+
+// --- NEW: Fetch the current user's branch ID ---
+$current_user_branch_id = null;
+$sql_branch = "SELECT branch_id_fk FROM users WHERE user_id = ?";
+$stmt_branch = $conn->prepare($sql_branch);
+$stmt_branch->bind_param("i", $current_user_id);
+if ($stmt_branch->execute()) {
+    $result_branch = $stmt_branch->get_result();
+    if ($row_branch = $result_branch->fetch_assoc()) {
+        $current_user_branch_id = $row_branch['branch_id_fk'];
+    }
+}
+$stmt_branch->close();
+// --- END: Fetch user's branch ID ---
+
+
 header('Content-Type: application/json'); // Set header for all API responses
 
 // --- Part 1: API Request Handler (AJAX) ---
@@ -37,12 +53,19 @@ if (isset($_GET['action'])) {
     }
 
     // Action: Add/Update/Delete product in the temporary table
-    // These actions are unchanged as purchase_temp still uses a text field for serials
     if ($_GET['action'] === 'add_temp_product' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
-        $sql = "INSERT INTO purchase_temp (vendor_id, purchase_date, invoice_number, category_id, brand_id, model_id, quantity, unit_price, warranty_period, serial_number, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        // *** MODIFIED: Added branch_id_fk column ***
+        $sql = "INSERT INTO purchase_temp (vendor_id, purchase_date, invoice_number, category_id, brand_id, model_id, branch_id_fk, quantity, unit_price, warranty_period, serial_number, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("issiiisissi", $data['vendor_id'], $data['purchase_date'], $data['invoice_number'], $data['category_id'], $data['brand_id'], $data['model_id'], $data['quantity'], $data['unit_price'], $data['warranty_period'], $data['serial_number'], $current_user_id);
+        // *** MODIFIED: Added $current_user_branch_id (i) to bind_param ***
+        $stmt->bind_param("issiiiisissi", 
+            $data['vendor_id'], $data['purchase_date'], $data['invoice_number'], 
+            $data['category_id'], $data['brand_id'], $data['model_id'], 
+            $current_user_branch_id, // Add the user's branch ID
+            $data['quantity'], $data['unit_price'], $data['warranty_period'], 
+            $data['serial_number'], $current_user_id
+        );
         if ($stmt->execute()) {
             $newId = $stmt->insert_id;
             $result = $conn->query("SELECT pt.*, c.category_name, b.brand_name, m.model_name FROM purchase_temp pt JOIN categories c ON pt.category_id = c.category_id JOIN brands b ON pt.brand_id = b.brand_id JOIN models m ON pt.model_id = m.model_id WHERE pt.temp_purchase_id = $newId");
@@ -53,6 +76,7 @@ if (isset($_GET['action'])) {
     
     if ($_GET['action'] === 'update_temp_product' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
+        // Note: branch_id is not editable in the modal, so we don't update it.
         $sql = "UPDATE purchase_temp SET category_id=?, brand_id=?, model_id=?, quantity=?, unit_price=?, warranty_period=?, serial_number=? WHERE temp_purchase_id=? AND created_by=?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("iiiisssii", $data['category_id'], $data['brand_id'], $data['model_id'], $data['quantity'], $data['unit_price'], $data['warranty_period'], $data['serial_number'], $data['temp_id'], $current_user_id);
@@ -96,17 +120,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_purchase'])) {
         }
 
         // Prepare statements *outside* the loop
-        $sql_insert_purchase = "INSERT INTO purchased_products (vendor_id, purchase_date, invoice_number, category_id, brand_id, model_id, quantity, unit_price, warranty_period, created_by, is_updated, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, FALSE)";
+        // *** MODIFIED: Added branch_id_fk column ***
+        $sql_insert_purchase = "INSERT INTO purchased_products (vendor_id, purchase_date, invoice_number, category_id, brand_id, model_id, branch_id_fk, quantity, unit_price, warranty_period, created_by, is_updated, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, FALSE)";
         $stmt_insert_purchase = $conn->prepare($sql_insert_purchase);
         
         $sql_insert_sl = "INSERT INTO product_sl (model_id_fk, purchase_id_fk, product_sl, status) VALUES (?, ?, ?, 0)";
         $stmt_insert_sl = $conn->prepare($sql_insert_sl);
 
         while ($row = $temp_products->fetch_assoc()) {
-            // Step 2: Insert into purchased_products (NO serial number)
-            $stmt_insert_purchase->bind_param("issiiisisi", 
+            // Step 2: Insert into purchased_products
+            // *** MODIFIED: Added $row['branch_id_fk'] to bind_param ***
+            $stmt_insert_purchase->bind_param("issiiiisisi", 
                 $row['vendor_id'], $row['purchase_date'], $row['invoice_number'], 
                 $row['category_id'], $row['brand_id'], $row['model_id'], 
+                $row['branch_id_fk'], // Add the branch ID from the temp table
                 $row['quantity'], $row['unit_price'], $row['warranty_period'], 
                 $row['created_by']
             );
@@ -273,6 +300,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if(details.category_id) catSelect.dispatchEvent(new Event('change'));
     }
     setupChainedDropdowns(document.getElementById('product-entry-form'));
+    
+    // --- Re-fetch Brands and Models for Edit Modal ---
+    const editCategorySelect = document.getElementById('edit-category_id');
+    const editBrandSelect = document.getElementById('edit-brand_id');
+    const editModelSelect = document.getElementById('edit-model_id');
+    
+    populateSelect(editCategorySelect, allCategories, 'category_id', 'category_name');
+    
+    editCategorySelect.addEventListener('change', async () => {
+        editBrandSelect.disabled = editModelSelect.disabled = true;
+        if (!editCategorySelect.value) return;
+        const res = await fetch(`?action=get_lists&list=brands&category_id=${editCategorySelect.value}`);
+        const { data } = await res.json();
+        populateSelect(editBrandSelect, data, 'brand_id', 'brand_name');
+    });
+    
+    editBrandSelect.addEventListener('change', async () => {
+        editModelSelect.disabled = true;
+        if (!editBrandSelect.value) return;
+        const res = await fetch(`?action=get_lists&list=models&brand_id=${editBrandSelect.value}`);
+        const { data } = await res.json();
+        populateSelect(editModelSelect, data, 'model_id', 'model_name');
+    });
+    // --- End re-fetch ---
+
     async function addProductToList() {
         const productData = {
             vendor_id: document.getElementById('vendor_id').value, purchase_date: document.getElementById('purchase_date').value, invoice_number: document.getElementById('invoice_number').value,
@@ -316,7 +368,25 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('edit-temp-id').value = tempId;
             document.getElementById('edit-quantity').value = data.quantity; document.getElementById('edit-unit_price').value = data.unit_price;
             document.getElementById('edit-warranty_period').value = data.warranty_period; document.getElementById('edit-serial_number').value = data.serial_number;
-            await setupChainedDropdowns(editModal, data);
+            
+            // Pre-populate edit modal dropdowns
+            editCategorySelect.value = data.category_id;
+            // Manually trigger change to load brands
+            editCategorySelect.dispatchEvent(new Event('change'));
+            
+            // We need to wait for brands to load, then select brand, then trigger change to load models
+            // This is tricky. A simple/less-ideal way is to just set them. A better way is to wait.
+            // Let's use a small delay to hope brands load.
+            setTimeout(() => {
+                editBrandSelect.value = data.brand_id;
+                editBrandSelect.dispatchEvent(new Event('change'));
+                
+                // And again for models
+                setTimeout(() => {
+                    editModelSelect.value = data.model_id;
+                }, 250); // Hope models load
+            }, 250); // Hope brands load
+            
             openModal(editModal);
         }
     });
@@ -353,4 +423,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
