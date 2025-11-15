@@ -1,0 +1,52 @@
+-- Start a transaction for safety
+START TRANSACTION;
+
+-- Create the new 'cart' table
+CREATE TABLE `cart` (
+  `cart_id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id_fk` int(11) NOT NULL COMMENT 'FK to the user who owns this cart (from users table)',
+  
+  `model_id_fk` int(11) NOT NULL COMMENT 'FK to the product model (from models table)',
+  `product_sl_id_fk` int(11) DEFAULT NULL COMMENT 'FK to the specific product serial (from product_sl table). NULL if non-serialized.',
+  `quantity` int(11) NOT NULL DEFAULT 1 COMMENT 'Quantity of the product. Must be 1 if serialized.',
+  
+  `sale_price` decimal(10,2) NOT NULL DEFAULT 0.00 COMMENT 'The intended sale price for *each* item',
+  `discount` decimal(10,2) DEFAULT 0.00 COMMENT 'Any discount applied to *each* item',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp() COMMENT 'When the item was added to the cart',
+  
+  -- Define the Primary Key
+  PRIMARY KEY (`cart_id`),
+  
+  -- Add a unique constraint to ensure a product serial can only be in one cart at a time
+  -- This constraint allows multiple NULL values, so it works for non-serialized items.
+  UNIQUE KEY `uk_product_sl` (`product_sl_id_fk`),
+  
+  -- Define Foreign Keys
+  CONSTRAINT `fk_cart_user` 
+    FOREIGN KEY (`user_id_fk`) 
+    REFERENCES `users` (`user_id`) 
+    ON DELETE CASCADE, -- If user is deleted, remove their cart items
+  
+  CONSTRAINT `fk_cart_model`
+    FOREIGN KEY (`model_id_fk`)
+    REFERENCES `models` (`model_id`)
+    ON DELETE CASCADE, -- If a model is deleted, remove it from carts
+    
+  CONSTRAINT `fk_cart_product_sl` 
+    FOREIGN KEY (`product_sl_id_fk`) 
+    REFERENCES `product_sl` (`sl_id`) 
+    ON DELETE CASCADE, -- If a specific serial item is deleted, remove it from the cart
+  
+  -- Add check constraints to enforce logic
+  -- Ensures quantity is 1 for serialized items
+  CONSTRAINT `chk_serialized_quantity` 
+    CHECK (`product_sl_id_fk` IS NULL OR `quantity` = 1),
+  
+  -- Ensures quantity is at least 1
+  CONSTRAINT `chk_min_quantity`
+    CHECK (`quantity` >= 1)
+  
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Commit the transaction
+COMMIT;
