@@ -68,7 +68,6 @@ $page_title = "Add Products to Cart";
         .serial-meta { font-size:.95rem; color:#374151; }
         .select-info { font-size:.85rem; color:#6b7280; }
 
-        /* small responsive tweaks */
         @media (max-width:640px) {
             #serial-list { max-height: 220px; }
         }
@@ -186,15 +185,17 @@ $page_title = "Add Products to Cart";
                         <tr>
                             <th class="text-left p-3 text-xs text-gray-600">Product</th>
                             <th class="text-left p-3 text-xs text-gray-600">Serial</th>
+                            <th class="text-left p-3 text-xs text-gray-600">Warranty</th> <!-- NEW COLUMN -->
                             <th class="text-right p-3 text-xs text-gray-600">Qty</th>
                             <th class="text-right p-3 text-xs text-gray-600">Unit</th>
                             <th class="text-right p-3 text-xs text-gray-600">Total</th>
                             <th class="text-center p-3 text-xs text-gray-600">Action</th>
                         </tr>
                     </thead>
+
                     <tbody id="cart-table-body" class="divide-y divide-gray-100">
                         <tr id="cart-empty-row">
-                            <td colspan="6" class="text-center p-8 text-gray-500">
+                            <td colspan="7" class="text-center p-8 text-gray-500">
                                 <i class="fas fa-spinner fa-spin fa-2x"></i>
                                 <div class="mt-2">Loading Cart...</div>
                             </td>
@@ -202,6 +203,14 @@ $page_title = "Add Products to Cart";
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- Proceed button placed in page flow, right-aligned under Cart Card -->
+        <div class="mt-4 flex justify-end">
+            <a href="sold_product.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 inline-flex items-center">
+                <span class="mr-2">Proceed</span>
+                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+            </a>
         </div>
 
     </div>
@@ -513,17 +522,22 @@ $(function(){
     function renderCart(rows) {
         $cartBody.empty();
         if (!rows || rows.length===0) {
-            $cartBody.append(`<tr id="cart-empty-row"><td colspan="6" class="text-center p-8 text-gray-500"><i class="fas fa-shopping-cart fa-2x mb-2"></i><div>Your cart is empty.</div></td></tr>`);
+            $cartBody.append(`<tr id="cart-empty-row"><td colspan="7" class="text-center p-8 text-gray-500"><i class="fas fa-shopping-cart fa-2x mb-2"></i><div>Your cart is empty.</div></td></tr>`);
             return;
         }
         rows.forEach(item => {
             const total = (parseFloat(item.sale_price)||0) * (parseInt(item.quantity)||0);
             const productDesc = `<div class="font-medium">${escapeHtml(item.model_name)}</div><div class="text-xs text-gray-500">${escapeHtml(item.category_name)} | ${escapeHtml(item.brand_name)}</div>`;
             const serialDesc = item.product_sl ? escapeHtml(item.product_sl) : '<span class="text-gray-400">N/A</span>';
+            const warrantyDesc = item.warranty_period 
+                ? escapeHtml(item.warranty_period) 
+                : '<span class="text-gray-400">N/A</span>';
+
             $cartBody.append(`
                 <tr data-cart-id="${item.cart_id}">
                     <td class="p-3">${productDesc}</td>
                     <td class="p-3">${serialDesc}</td>
+                    <td class="p-3 text-center">${warrantyDesc}</td>
                     <td class="p-3 text-right">${item.quantity}</td>
                     <td class="p-3 text-right">${formatCurrency(item.sale_price)}</td>
                     <td class="p-3 text-right font-medium">${formatCurrency(total)}</td>
@@ -534,6 +548,7 @@ $(function(){
             `);
         });
     }
+
 
     // Remove handler (delegated)
     $cartBody.on('click', '.remove-cart-item', function(){
