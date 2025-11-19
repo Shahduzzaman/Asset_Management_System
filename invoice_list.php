@@ -18,14 +18,31 @@ if (!isset($_SESSION["user_id"])) {
 }
 
 // --- Fetch Invoices ---
-// Joining client_head and client_branch to get readable names
-// Ordered by Invoice ID DESC (Newest First)
-$sql = "SELECT inv.*, ch.Company_Name, cb.branch_name, u.user_name as created_by_name
-FROM invoice inv
-LEFT JOIN client_branch cb ON inv.client_branch_id_fk = cb.client_branch_id
-LEFT JOIN client_head ch ON cb.client_head_id_fk = ch.client_head_id
-LEFT JOIN users u ON inv.created_by = u.user_id
-ORDER BY inv.invoice_id DESC";
+// Strategy: The invoice table doesn't have client info in your schema.
+// We must find the client via the sold_product table linked to the invoice.
+// We use a subquery or distinct join to fetch the client name associated with the invoice.
+$sql = "SELECT 
+            inv.invoice_id,
+            inv.Invoice_No,
+            inv.created_at as invoice_date,
+            inv.ExcludingTax_TotalPrice as sub_total,
+            inv.IncludingTax_TotalPrice as grand_total,
+            u.user_name as created_by_name,
+            -- Subquery to get Company Name from sold_product -> client_head
+            (SELECT ch.Company_Name 
+             FROM sold_product sp 
+             JOIN client_head ch ON sp.client_head_id_fk = ch.client_head_id 
+             WHERE sp.invoice_id_fk = inv.invoice_id 
+             LIMIT 1) as Company_Name,
+            -- Subquery to get Branch Name from sold_product -> client_branch
+            (SELECT cb.Branch_Name 
+             FROM sold_product sp 
+             JOIN client_branch cb ON sp.client_branch_id_fk = cb.client_branch_id 
+             WHERE sp.invoice_id_fk = inv.invoice_id 
+             LIMIT 1) as Branch_Name
+        FROM invoice inv
+        LEFT JOIN users u ON inv.created_by = u.user_id
+        ORDER BY inv.invoice_id DESC";
 
 $result = $conn->query($sql);
 ?>
@@ -86,8 +103,9 @@ $result = $conn->query($sql);
                                         <?php echo date('d M Y', strtotime($row['invoice_date'])); ?>
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700">
-                                        <div class="font-bold"><?php echo htmlspecialchars($row['Company_Name']); ?></div>
-                                        <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['branch_name']); ?></div>
+                                        <div class="font-bold"><?php echo htmlspecialchars($row['Company_Name'] ?? 'N/A'); ?></div>
+                                        <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['Branch_Name'] ?? ''); ?></div>
+                                        <div class="text-xs text-gray-400 mt-1">Created by: <?php echo htmlspecialchars($row['created_by_name'] ?? 'Unknown'); ?></div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">
                                         <?php echo number_format($row['sub_total'], 2); ?>
@@ -152,19 +170,14 @@ $result = $conn->query($sql);
     </div>
 
     <script>
-        // Function to open modal and fetch content
         function openInvoiceModal(invoiceId) {
             const modal = document.getElementById('invoiceModal');
             const content = document.getElementById('modalContent');
             const printBtn = document.getElementById('modalPrintBtn');
             
-            // Show Modal
             $(modal).fadeIn(200);
-            
-            // Update Print Link
             printBtn.href = `invoice_view.php?id=${invoiceId}&print=true`;
 
-            // Load Content via AJAX
             $.ajax({
                 url: 'invoice_view.php',
                 type: 'GET',
@@ -178,14 +191,12 @@ $result = $conn->query($sql);
             });
         }
 
-        // Function to close modal
         function closeInvoiceModal() {
             $('#invoiceModal').fadeOut(200, function() {
                 $('#modalContent').html('<div class="flex justify-center items-center py-10"><i class="fas fa-spinner fa-spin fa-3x text-blue-500"></i></div>');
             });
         }
 
-        // Close modal when clicking outside
         $(window).click(function(event) {
             if (event.target.id == 'invoiceModal') {
                 closeInvoiceModal();
