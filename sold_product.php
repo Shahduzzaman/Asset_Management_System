@@ -83,7 +83,7 @@ function ensure_manual_work_order(mysqli $conn, ?int $client_head_id, int $creat
     // Look for an existing manual work order for this client head
     $like = 'MANUAL-SALE-%';
     $stmt = $conn->prepare("SELECT work_order_id FROM work_order WHERE client_head_id_fk = ? AND Order_No LIKE ? LIMIT 1");
-    if (!$stmt) throw new Exception("Prepare check manual work_order failed: " . $conn->error);
+    if (!$stmt) throw new Exception("Prepare check manual_work_order failed: " . $conn->error);
     $stmt->bind_param("is", $client_head_id, $like);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -111,13 +111,11 @@ function ensure_manual_work_order(mysqli $conn, ?int $client_head_id, int $creat
  */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
     // Inputs from form
-    // client_branch_id holds "head_{id}" for company head selection OR a real branch id
     $client_branch_raw = $_POST['client_branch_id'] ?? '';
     $client_head_id = isset($_POST['client_head_id']) && $_POST['client_head_id'] !== '' ? (int)$_POST['client_head_id'] : null;
     $client_branch_id = null;
     if ($client_branch_raw !== '') {
         if (preg_match('/^head_(\d+)$/', $client_branch_raw, $m)) {
-            // head selection -> branch null, client_head_id set from hidden input
             $client_branch_id = null;
             if (!$client_head_id) $client_head_id = (int)$m[1];
         } else {
@@ -142,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
     // Start transaction
     $conn->begin_transaction();
     try {
-        // 1) Lock & read cart for user
+        // 1) Lock & read cart for user (non-aggregated fetch for selling)
         $stmt = $conn->prepare("SELECT * FROM cart WHERE user_id_fk = ? FOR UPDATE");
         if (!$stmt) throw new Exception("Prepare failed (select cart): " . $conn->error);
         $stmt->bind_param("i", $user_id);
@@ -154,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
             throw new Exception("Cart is empty. Nothing to sell.");
         }
 
-        // 2) Generate invoice and insert (use only actual invoice columns)
+        // 2) Generate invoice and insert
         $invoice_no = generate_invoice_no($conn);
 
         $stmtIns = $conn->prepare("INSERT INTO invoice (Invoice_No, IncludingTax_TotalPrice, ExcludingTax_TotalPrice, Tax_Percentage, created_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
@@ -310,25 +308,40 @@ if ($res_heads) {
     $res_heads->close();
 }
 
-// Cart items
+// Cart items: group by model and aggregate serials, warranties
 $cart_items = [];
 $cart_sub_total = 0.0;
 $sql_cart_view = "
-    SELECT c.cart_id, c.quantity,
-           COALESCE(c.sale_price, 0) AS unit_price,
-           COALESCE(c.sale_price, 0) * c.quantity AS total_price,
-           m.model_name,
-           product_sl.product_sl AS serial_no
+    SELECT 
+        m.model_id,
+        cat.category_name,
+        b.brand_name,
+        m.model_name,
+        COALESCE(GROUP_CONCAT(DISTINCT product_sl.product_sl ORDER BY c.cart_id SEPARATOR ', '), '') AS serials,
+        COALESCE(GROUP_CONCAT(DISTINCT pp.warranty_period SEPARATOR ', '), '') AS warranty_concat,
+        SUM(c.quantity) AS quantity,
+        COALESCE(SUM(c.quantity * COALESCE(c.sale_price,0)),0) AS total_price,
+        -- unit price display: if mixed prices exist we show average; this is only for display
+        COALESCE(AVG(COALESCE(c.sale_price,0)),0) AS unit_price
     FROM cart c
     JOIN models m ON c.model_id_fk = m.model_id
+    JOIN brands b ON m.brand_id = b.brand_id
+    JOIN categories cat ON m.category_id = cat.category_id
     LEFT JOIN product_sl ON c.product_sl_id_fk = product_sl.sl_id
+    LEFT JOIN purchased_products pp ON product_sl.purchase_id_fk = pp.purchase_id
     WHERE c.user_id_fk = ?
-    ORDER BY c.cart_id ASC";
+    GROUP BY m.model_id, cat.category_name, b.brand_name, m.model_name
+    ORDER BY MIN(c.cart_id) ASC
+";
 if ($stmt_cart = $conn->prepare($sql_cart_view)) {
     $stmt_cart->bind_param('i', $user_id);
     $stmt_cart->execute();
     $cart_view_result = $stmt_cart->get_result();
     while ($row = $cart_view_result->fetch_assoc()) {
+        // Normalize empty strings to nulls for display
+        if ($row['serials'] === '') $row['serials'] = null;
+        if ($row['warranty_concat'] === '') $row['warranty_concat'] = null;
+
         $cart_items[] = $row;
         $cart_sub_total += (float)$row['total_price'];
     }
@@ -343,6 +356,10 @@ if ($stmt_cart = $conn->prepare($sql_cart_view)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sell Products</title>
+
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Select2 -->
@@ -358,10 +375,37 @@ if ($stmt_cart = $conn->prepare($sql_cart_view)) {
         .select2-container--default .select2-selection--single .select2-selection__arrow {
             height: 2.375rem;
         }
+        .product-details-main { font-weight: 600; }
+        .product-details-sub { font-size: .9rem; color: #4b5563; margin-top: .25rem; }
+        .warranty-cell { font-size: .95rem; color: #111827; }
+
+        /* header buttons spacing */
+        .top-actions { margin-bottom: 1rem; display:flex; justify-content:space-between; gap:1rem; align-items:center; }
+        @media (max-width:640px) {
+            .top-actions { flex-direction: column; align-items: stretch; }
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans leading-normal tracking-normal">
 <div class="container mx-auto p-8">
+
+    <!-- Top action buttons: Back to Cart (left) and Back to Dashboard (right) -->
+    <div class="top-actions">
+        <div class="flex items-center">
+            <a href="add_to_cart.php" class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                <i class="fas fa-arrow-left mr-2" aria-hidden="true"></i>
+                <span>Back to Cart</span>
+            </a>
+        </div>
+
+        <div>
+            <a href="dashboard.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                <i class="fas fa-arrow-left mr-2" aria-hidden="true"></i>Back to Dashboard
+            </a>
+        </div>
+
+    </div>
+
     <div class="bg-white shadow-lg rounded-lg p-6 max-w-4xl mx-auto">
         <h1 class="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Complete Sale</h1>
 
@@ -409,14 +453,14 @@ if ($stmt_cart = $conn->prepare($sql_cart_view)) {
                 </select>
             </div>
 
-            <!-- Cart table (unchanged) -->
+            <!-- Cart table (updated columns) -->
             <h2 class="text-xl font-semibold mb-4 text-gray-700">Items in Cart</h2>
             <div class="overflow-x-auto border rounded-lg mb-6">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial No</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Details</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Warranty</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
@@ -427,8 +471,34 @@ if ($stmt_cart = $conn->prepare($sql_cart_view)) {
                             <tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Cart is empty</td></tr>
                         <?php else: foreach ($cart_items as $item): ?>
                             <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?php echo htmlspecialchars($item['model_name']); ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($item['serial_no'] ?? 'N/A'); ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    <div class="product-details-main">
+                                        <?php
+                                            $cat = htmlspecialchars($item['category_name']);
+                                            $brand = htmlspecialchars($item['brand_name']);
+                                            $model = htmlspecialchars($item['model_name']);
+                                            echo "{$cat} | {$brand} | {$model}";
+                                        ?>
+                                    </div>
+                                    <?php if (!empty($item['serials'])): ?>
+                                        <div class="product-details-sub">Serials: <?php echo htmlspecialchars($item['serials']); ?></div>
+                                    <?php endif; ?>
+                                </td>
+
+                                <td class="px-6 py-4 whitespace-nowrap text-sm warranty-cell">
+                                    <?php
+                                        // If multiple warranties exist (comma separated), show them deduped
+                                        if (!empty($item['warranty_concat'])) {
+                                            // clean up duplicates and empty strings
+                                            $wparts = array_filter(array_map('trim', explode(',', $item['warranty_concat'])));
+                                            $wparts = array_values(array_unique($wparts));
+                                            echo htmlspecialchars(implode(', ', $wparts));
+                                        } else {
+                                            echo '<span class="text-gray-400">N/A</span>';
+                                        }
+                                    ?>
+                                </td>
+
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right"><?php echo htmlspecialchars($item['quantity']); ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right"><?php echo number_format($item['unit_price'], 2); ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right"><?php echo number_format($item['total_price'], 2); ?></td>
@@ -525,16 +595,23 @@ $(document).ready(function() {
         var taxPercent = parseFloat($('#tax_percent').val()) || 0;
         var discount = parseFloat($('#discount').val()) || 0;
 
-        var excl = Math.max(0, subTotal - discount);
-        var taxAmount = excl * (taxPercent / 100);
-        var incl = excl + taxAmount;
+        // 1) calculate tax on the full subtotal
+        var taxAmount = subTotal * (taxPercent / 100);
 
-        $('#grand_total_display').text(incl.toFixed(2));
-        $('#total_after_tax_display')?.text(incl.toFixed(2)); // if exists
+        // 2) total after tax (before discount)
+        var totalAfterTax = subTotal + taxAmount;
+
+        // 3) subtract discount AFTER tax
+        var grandTotal = Math.max(0, totalAfterTax - discount);
+
+        // update displays
+        $('#grand_total_display').text(grandTotal.toFixed(2));
+        $('#total_after_tax_display')?.text(totalAfterTax.toFixed(2)); // if exists
         $('#sub_total_display').text(subTotal.toFixed(2));
         $('#tax_amount_display')?.text(taxAmount.toFixed(2)); // if exists
 
-        $('#grand_total').val(incl.toFixed(2));
+        // keep hidden input in sync
+        $('#grand_total').val(grandTotal.toFixed(2));
     }
 
     $('#tax_percent, #discount').on('keyup change', calculateTotals);
