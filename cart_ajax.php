@@ -1,6 +1,6 @@
 <?php
 session_start();
-// --- JSON header & error reporting (errors logged, not shown) ---
+// --- JSON header & error reporting (errors logged, not shown to user) ---
 header('Content-Type: application/json; charset=utf-8');
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -9,7 +9,8 @@ require_once 'connection.php'; // expects $conn (mysqli)
 
 // Authentication check
 if (!isset($_SESSION['user_id'])) {
-    send_json(['status' => 'error', 'message' => 'Not authenticated. Please log in.']);
+    echo json_encode(['status' => 'error', 'message' => 'Not authenticated. Please log in.']);
+    exit;
 }
 $current_user_id = (int)$_SESSION['user_id'];
 
@@ -52,8 +53,6 @@ try {
         case 'available_quantity':
             $model_id = (int)($_GET['model_id'] ?? 0);
 
-            // NOTE: purchased_products uses model_id (per your earlier schema dump)
-            // sold_product uses model_id_fk, cart uses model_id_fk
             $sql = "SELECT
                         COALESCE((SELECT SUM(quantity) FROM purchased_products WHERE model_id = ? AND is_deleted = 0), 0)
                         -
@@ -74,7 +73,6 @@ try {
         case 'get_avg_max_price':
             $model_id = (int)($_GET['model_id'] ?? 0);
 
-            // Using purchased_products.model_id per schema
             $sql = "SELECT COALESCE(AVG(unit_price), 0) AS avg_price, COALESCE(MAX(unit_price), 0) AS max_price
                     FROM purchased_products WHERE model_id = ? AND is_deleted = 0";
             $stmt = $conn->prepare($sql);
@@ -93,7 +91,7 @@ try {
         case 'get_serials_for_model':
             $model_id = (int)($_GET['model_id'] ?? 0);
 
-            // product_sl uses model_id_fk and has 'status' column (no is_sold/is_deleted in your schema dump)
+            // product_sl uses model_id_fk and has 'status' column (0=available,1=reserved/sold)
             // left join with cart to ensure serial isn't already in someone's cart
             $sql = "SELECT sl.sl_id, sl.product_sl
                     FROM product_sl sl
@@ -110,19 +108,35 @@ try {
             send_json(['status' => 'success', 'serials' => $serials]);
             break;
 
-        // --- get cart contents for current user ---
+        // --- get cart contents (warranty from purchased_products via product_sl.purchase_id_fk) ---
         case 'get_cart_contents':
             $sql = "SELECT 
-                        c.cart_id, c.model_id_fk, c.product_sl_id_fk, c.quantity, c.sale_price,
+                        c.cart_id,
+                        c.model_id_fk,
+                        c.product_sl_id_fk,
+                        c.quantity,
+                        c.sale_price,
                         m.model_name,
                         b.brand_name,
                         cat.category_name,
-                        psl.product_sl
+                        -- product serial text (if any)
+                        (SELECT p.product_sl FROM product_sl p WHERE p.sl_id = c.product_sl_id_fk LIMIT 1) AS product_sl,
+                        -- warranty: if serialized, follow product_sl.purchase_id_fk -> purchased_products.warranty_period
+                        (CASE
+                            WHEN c.product_sl_id_fk IS NOT NULL THEN (
+                                SELECT pp.warranty_period
+                                FROM purchased_products pp
+                                WHERE pp.purchase_id = (
+                                    SELECT ps.purchase_id_fk FROM product_sl ps WHERE ps.sl_id = c.product_sl_id_fk LIMIT 1
+                                )
+                                LIMIT 1
+                            )
+                            ELSE COALESCE('', '')
+                        END) AS warranty_period
                     FROM cart c
                     JOIN models m ON c.model_id_fk = m.model_id
                     JOIN brands b ON m.brand_id = b.brand_id
                     JOIN categories cat ON m.category_id = cat.category_id
-                    LEFT JOIN product_sl psl ON c.product_sl_id_fk = psl.sl_id
                     WHERE c.user_id_fk = ?
                     ORDER BY c.cart_id DESC";
             $stmt = $conn->prepare($sql);
