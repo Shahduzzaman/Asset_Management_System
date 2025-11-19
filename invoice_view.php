@@ -49,21 +49,61 @@ if (!$invoice) {
     die("Invoice not found.");
 }
 
-// --- 2. Fetch Sold Items ---
+// --- 2. Fetch Sold Items with Grouping Data ---
+// We join brands, categories, and purchased_products (to get warranty)
 $sql_items = "SELECT 
                 sp.Quantity,
                 sp.Sold_Unit_Price,
-                m.model_name, 
-                sl.product_sl as serial_no 
+                m.model_name,
+                b.brand_name,
+                c.category_name, 
+                sl.product_sl as serial_no,
+                pp.warranty_period
               FROM sold_product sp
               JOIN models m ON sp.model_id_fk = m.model_id
+              LEFT JOIN brands b ON m.brand_id = b.brand_id
+              LEFT JOIN categories c ON m.category_id = c.category_id
               LEFT JOIN product_sl sl ON sp.product_sl_id_fk = sl.sl_id
-              WHERE sp.invoice_id_fk = ?";
+              LEFT JOIN purchased_products pp ON sl.purchase_id_fk = pp.purchase_id
+              WHERE sp.invoice_id_fk = ?
+              ORDER BY c.category_name, b.brand_name, m.model_name";
 
 $stmt_items = $conn->prepare($sql_items);
 $stmt_items->bind_param("i", $invoice_id);
 $stmt_items->execute();
 $result_items = $stmt_items->get_result();
+
+// --- Process Items for Grouping ---
+$grouped_items = [];
+
+while ($row = $result_items->fetch_assoc()) {
+    // Create a unique key based on Model and Price to group rows
+    $key = $row['model_name'] . '_' . (string)$row['Sold_Unit_Price'];
+
+    if (!isset($grouped_items[$key])) {
+        $grouped_items[$key] = [
+            'description' => $row['brand_name'] . ' ' . $row['model_name'],
+            'category'    => $row['category_name'],
+            'unit_price'  => $row['Sold_Unit_Price'],
+            'quantity'    => 0,
+            'warranty'    => $row['warranty_period'], // Initial warranty
+            'serials'     => []
+        ];
+    }
+
+    // Accumulate Quantity
+    $grouped_items[$key]['quantity'] += $row['Quantity'];
+
+    // Collect Serial Number if exists
+    if (!empty($row['serial_no'])) {
+        $grouped_items[$key]['serials'][] = $row['serial_no'];
+    }
+    
+    // If warranty was null but this item has one, update it
+    if (empty($grouped_items[$key]['warranty']) && !empty($row['warranty_period'])) {
+        $grouped_items[$key]['warranty'] = $row['warranty_period'];
+    }
+}
 
 // --- 3. Calculate Tax Amount ---
 $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
@@ -112,7 +152,7 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
                 </div>
             </div>
 
-            <!-- Right: Contact Info (Title removed from here) -->
+            <!-- Right: Contact Info -->
             <div class="text-right">
                 <div class="text-sm text-gray-600 space-y-1">
                     <p class="mt-2"><strong>Head Office:</strong> House 48, Road 02, Block L,</p>
@@ -136,7 +176,8 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
             <div class="w-1/2">
                 <h3 class="text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">Bill To:</h3>
                 <div class="bg-gray-50 p-4 rounded border border-gray-100">
-                    <div class="text-gray-900 font-bold text-lg"><?php echo htmlspecialchars($invoice['Company_Name'] ?? 'Walk-in Client'); ?></div>
+                    <!-- Removed fallback 'Walk-in Client' -->
+                    <div class="text-gray-900 font-bold text-lg"><?php echo htmlspecialchars($invoice['Company_Name'] ?? ''); ?></div>
                     <div class="text-gray-700 font-medium"><?php echo htmlspecialchars($invoice['Branch_Name'] ?? ''); ?></div>
                     <div class="text-sm text-gray-600 mt-2 whitespace-pre-line leading-relaxed"><?php echo htmlspecialchars($invoice['Branch_Address'] ?? $invoice['Head_Address']); ?></div>
                     <?php if(!empty($invoice['Contact_Number'])): ?>
@@ -176,7 +217,8 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
                 <thead class="bg-gray-800 text-white">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">#</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Description</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider w-1/2">Description</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider">Warranty</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider">Qty</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider">Unit Price</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider">Total</th>
@@ -185,22 +227,28 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
                 <tbody class="bg-white divide-y divide-gray-200">
                     <?php 
                     $counter = 1;
-                    while($item = $result_items->fetch_assoc()): 
-                        $line_total = $item['Quantity'] * $item['Sold_Unit_Price'];
+                    foreach($grouped_items as $item): 
+                        $line_total = $item['quantity'] * $item['unit_price'];
                     ?>
                     <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3 text-sm text-gray-500"><?php echo $counter++; ?></td>
-                        <td class="px-4 py-3 text-sm text-gray-800">
-                            <div class="font-bold text-gray-900"><?php echo htmlspecialchars($item['model_name']); ?></div>
-                            <?php if(!empty($item['serial_no'])): ?>
-                                <div class="text-xs text-gray-500 italic mt-1">SN: <?php echo htmlspecialchars($item['serial_no']); ?></div>
+                        <td class="px-4 py-3 text-sm text-gray-500 align-top"><?php echo $counter++; ?></td>
+                        <td class="px-4 py-3 text-sm text-gray-800 align-top">
+                            <div class="font-bold text-gray-900"><?php echo htmlspecialchars($item['description']); ?></div>
+                            <!-- Serials on bottom line separated by commas -->
+                            <?php if(!empty($item['serials'])): ?>
+                                <div class="text-xs text-gray-500 italic mt-1">
+                                    SN: <?php echo htmlspecialchars(implode(', ', $item['serials'])); ?>
+                                </div>
                             <?php endif; ?>
                         </td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-800"><?php echo $item['Quantity']; ?></td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-800"><?php echo number_format($item['Sold_Unit_Price'], 2); ?></td>
-                        <td class="px-4 py-3 text-sm text-right font-medium text-gray-900"><?php echo number_format($line_total, 2); ?></td>
+                        <td class="px-4 py-3 text-sm text-center text-gray-600 align-top">
+                            <?php echo htmlspecialchars($item['warranty'] ?? 'N/A'); ?>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-800 align-top"><?php echo $item['quantity']; ?></td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-800 align-top"><?php echo number_format($item['unit_price'], 2); ?></td>
+                        <td class="px-4 py-3 text-sm text-right font-medium text-gray-900 align-top"><?php echo number_format($line_total, 2); ?></td>
                     </tr>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
