@@ -122,8 +122,9 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
             width: 210mm;
             min-height: 297mm;
             background: white;
-            margin: 20px auto;
-            padding: 15mm 15mm 10mm 15mm; /* Top, Right, Bottom, Left */
+            margin: 0px auto;
+            /* Reduced top and bottom padding to remove empty space */
+            padding: 8mm 15mm 5mm 15mm; /* Top, Right, Bottom, Left */
             position: relative;
             box-shadow: 0 0 10px rgba(0,0,0,0.3);
             display: flex;
@@ -155,12 +156,12 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
         }
 
         .logo-img {
-            max-height: 80px;
+            max-height: 70px; /* Slightly smaller logo to save vertical space */
             width: auto;
         }
 
         .company-text h1 {
-            font-size: 26px; /* Adjusted to fit one line */
+            font-size: 22px; /* Decreased font size */
             font-weight: 800;
             text-transform: uppercase;
             color: #111;
@@ -168,7 +169,7 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
         }
 
         .company-text p {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: #2563eb; /* Blue tagline */
             font-style: italic;
@@ -185,21 +186,15 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
         /* INVOICE TITLE */
         .invoice-title {
             text-align: center;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
         .invoice-title h2 {
             font-size: 28px;
             font-weight: 800;
             letter-spacing: 4px;
-            margin-bottom: 2px;
+            margin: 0;
         }
-        .invoice-title span {
-            font-size: 12px;
-            text-transform: uppercase;
-            color: #666;
-            font-weight: 600;
-            letter-spacing: 1px;
-        }
+        /* Original Copy span removed */
 
         /* INFO GRID */
         .info-grid {
@@ -297,16 +292,16 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
             font-size: 11px;
             font-weight: 600;
             color: #444;
-            margin-top: 20px;
+            margin-top: 15px;
             margin-bottom: 0;
             border-top: 1px dashed #ccc;
-            padding-top: 10px;
+            padding-top: 8px;
         }
 
         .signatures {
             display: flex;
             justify-content: space-between;
-            margin-top: 30px; /* Spacer from content above */
+            margin-top: 20px; /* Spacer from content above */
             padding-top: 10px;
         }
         .sig-box {
@@ -336,7 +331,8 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
                 margin: 0;
                 box-shadow: none;
                 border: none;
-                padding: 10mm 15mm 10mm 15mm;
+                /* Ensure padding is respected in print */
+                padding: 8mm 15mm 5mm 15mm;
             }
             .no-print { display: none !important; }
             /* Force background graphics if any (though we removed bg colors) */
@@ -389,7 +385,6 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
             <!-- Title -->
             <div class="invoice-title">
                 <h2>INVOICE</h2>
-                <span>Original Copy</span>
             </div>
 
             <!-- Info Grid -->
