@@ -22,7 +22,6 @@ $sql_master = "SELECT
                 inv.IncludingTax_TotalPrice as grand_total,
                 inv.Tax_Percentage,
                 u.user_name as Created_By_User,
-                -- Client & Branch & Work Order Info (Linked via sold_product)
                 ch.Company_Name,
                 ch.Address as Head_Address,
                 ch.Contact_Number,
@@ -32,7 +31,6 @@ $sql_master = "SELECT
                 wo.Order_Date as WO_Date
               FROM invoice inv
               LEFT JOIN users u ON inv.created_by = u.user_id
-              -- Join to sold_product to bridge to client info
               LEFT JOIN sold_product sp ON inv.invoice_id = sp.invoice_id_fk
               LEFT JOIN client_branch cb ON sp.client_branch_id_fk = cb.client_branch_id
               LEFT JOIN client_head ch ON sp.client_head_id_fk = ch.client_head_id
@@ -49,8 +47,7 @@ if (!$invoice) {
     die("Invoice not found.");
 }
 
-// --- 2. Fetch Sold Items with Grouping Data ---
-// We join brands, categories, and purchased_products (to get warranty)
+// --- 2. Fetch Sold Items ---
 $sql_items = "SELECT 
                 sp.Quantity,
                 sp.Sold_Unit_Price,
@@ -73,39 +70,34 @@ $stmt_items->bind_param("i", $invoice_id);
 $stmt_items->execute();
 $result_items = $stmt_items->get_result();
 
-// --- Process Items for Grouping ---
+// --- Process Items (Grouping) ---
 $grouped_items = [];
-
 while ($row = $result_items->fetch_assoc()) {
-    // Create a unique key based on Model and Price to group rows
     $key = $row['model_name'] . '_' . (string)$row['Sold_Unit_Price'];
-
     if (!isset($grouped_items[$key])) {
         $grouped_items[$key] = [
             'description' => $row['brand_name'] . ' ' . $row['model_name'],
-            'category'    => $row['category_name'],
             'unit_price'  => $row['Sold_Unit_Price'],
             'quantity'    => 0,
-            'warranty'    => $row['warranty_period'], // Initial warranty
+            'warranty'    => $row['warranty_period'],
             'serials'     => []
         ];
     }
-
-    // Accumulate Quantity
     $grouped_items[$key]['quantity'] += $row['Quantity'];
-
-    // Collect Serial Number if exists
     if (!empty($row['serial_no'])) {
         $grouped_items[$key]['serials'][] = $row['serial_no'];
     }
-    
-    // If warranty was null but this item has one, update it
     if (empty($grouped_items[$key]['warranty']) && !empty($row['warranty_period'])) {
         $grouped_items[$key]['warranty'] = $row['warranty_period'];
     }
 }
 
-// --- 3. Calculate Tax Amount ---
+// --- Helper for Client Name ---
+$client_name = $invoice['Company_Name'] ?? '';
+if (!empty($invoice['Branch_Name']) && $invoice['Branch_Name'] != $invoice['Company_Name']) {
+    $client_name .= ' - ' . $invoice['Branch_Name'];
+}
+
 $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
 ?>
 
@@ -114,204 +106,421 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
 <head>
     <meta charset="UTF-8">
     <title>Invoice #<?php echo htmlspecialchars($invoice['Invoice_No']); ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        @media print {
-            body { background-color: white; -webkit-print-color-adjust: exact; }
-            .no-print { display: none; }
-            .shadow-lg { box-shadow: none; }
-            .border { border: 1px solid #ddd; }
-            /* Ensure logo prints clearly */
-            img { -webkit-print-color-adjust: exact; }
+        /* Base Reset */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #555; /* Dark background for preview mode */
+            color: #111;
+            line-height: 1.4;
         }
-        .invoice-container { max-width: 800px; margin: 0 auto; background: white; }
+
+        /* Container for A4 Page */
+        .page-container {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            margin: 20px auto;
+            padding: 15mm 15mm 10mm 15mm; /* Top, Right, Bottom, Left */
+            position: relative;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Layout structure to push footer to bottom */
+        .content-wrap {
+            flex: 1; /* Takes up available space */
+        }
+        .footer-wrap {
+            margin-top: auto; /* Pushes to bottom */
+        }
+
+        /* HEADER */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center; /* Vertically align logo and text */
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .company-identity {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-img {
+            max-height: 80px;
+            width: auto;
+        }
+
+        .company-text h1 {
+            font-size: 26px; /* Adjusted to fit one line */
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #111;
+            white-space: nowrap; /* Force one line */
+        }
+
+        .company-text p {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2563eb; /* Blue tagline */
+            font-style: italic;
+            margin-top: 2px;
+        }
+
+        .company-address {
+            text-align: right;
+            font-size: 11px;
+            color: #444;
+        }
+        .company-address strong { font-size: 12px; color: #000; }
+
+        /* INVOICE TITLE */
+        .invoice-title {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .invoice-title h2 {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            margin-bottom: 2px;
+        }
+        .invoice-title span {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #666;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        /* INFO GRID */
+        .info-grid {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            gap: 20px;
+        }
+
+        .bill-to {
+            flex: 0 0 55%;
+        }
+
+        .bill-box {
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        
+        .bill-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .client-name { font-weight: 700; font-size: 14px; color: #000; }
+        .client-addr { font-size: 11px; color: #444; margin-top: 4px; white-space: pre-line; }
+        .client-contact { font-size: 11px; margin-top: 4px; }
+
+        .meta-info {
+            flex: 0 0 40%;
+            text-align: right;
+        }
+        .meta-table { width: 100%; font-size: 11px; border-collapse: collapse; }
+        .meta-table td { padding: 3px 0; }
+        .meta-key { font-weight: 600; color: #555; text-align: left; }
+        .meta-val { font-weight: 700; color: #000; text-align: right; }
+
+        /* ITEMS TABLE */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 11px;
+        }
+        
+        .items-table th {
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 8px 5px;
+            text-align: left;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #000; /* No background color */
+        }
+        
+        .items-table td {
+            padding: 8px 5px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+            color: #333;
+        }
+        
+        .col-right { text-align: right; }
+        .col-center { text-align: center; }
+
+        /* TOTALS */
+        .totals-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+        .totals-table {
+            width: 300px;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        .totals-table td { padding: 4px 0; }
+        .t-label { text-align: left; font-weight: 600; color: #555; }
+        .t-val { text-align: right; font-weight: 700; color: #000; }
+        .grand-total {
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000;
+            padding: 8px 0;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+
+        /* FOOTER & SIGNATURES */
+        .thank-you {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: #444;
+            margin-top: 20px;
+            margin-bottom: 0;
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+        }
+
+        .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px; /* Spacer from content above */
+            padding-top: 10px;
+        }
+        .sig-box {
+            width: 40%;
+            text-align: center;
+        }
+        .sig-line {
+            border-top: 1px solid #000;
+            margin-bottom: 5px;
+        }
+        .sig-text {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        /* PRINT CONFIG */
+        @page {
+            size: A4;
+            margin: 0; /* Remove browser default headers/footers */
+        }
+        @media print {
+            body { background: white; margin: 0; }
+            .page-container {
+                width: 100%;
+                height: 100%; /* Fill the page */
+                margin: 0;
+                box-shadow: none;
+                border: none;
+                padding: 10mm 15mm 10mm 15mm;
+            }
+            .no-print { display: none !important; }
+            /* Force background graphics if any (though we removed bg colors) */
+            -webkit-print-color-adjust: exact; 
+        }
+
+        /* UI Buttons (No Print) */
+        .actions {
+            position: fixed; top: 20px; right: 20px; z-index: 999;
+            display: flex; gap: 10px;
+        }
+        .btn {
+            padding: 10px 15px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .btn-print { background: #2563eb; color: white; }
+        .btn-back { background: #f3f4f6; color: #333; }
     </style>
 </head>
-<body class="<?php echo $is_print ? 'bg-white' : 'bg-gray-100'; ?> text-gray-800 p-4">
+<body>
 
-    <!-- Invoice Box -->
-    <div class="invoice-container <?php echo $is_print ? '' : 'shadow-lg border rounded-lg p-8 mt-4'; ?>">
-        
-        <!-- HEADER SECTION -->
-        <div class="flex justify-between items-center border-b-2 border-gray-200 pb-6 mb-6">
-            
-            <!-- Left: Logo & Branding -->
-            <div class="flex items-center">
-                <!-- Logo -->
-                <div class="mr-5">
-                    <img src="images/logo.png" alt="Protection One" style="max-height: 90px; width: auto;" onerror="this.style.display='none'; document.getElementById('alt-logo').style.display='block';">
-                    <!-- Fallback text if image is missing -->
-                    <h2 id="alt-logo" style="display:none;" class="text-2xl font-bold text-blue-800">Protection One</h2>
-                </div>
-                
-                <!-- Company Name & Tagline -->
-                <div>
-                    <h1 class="text-4xl font-extrabold text-gray-900 leading-none uppercase tracking-tight" style="font-family: sans-serif;">Protection One</h1>
-                    <p class="text-base font-semibold text-blue-600 italic mt-1">A Complete Security Solution</p>
-                </div>
-            </div>
+    <div class="actions no-print">
+        <button class="btn btn-print" onclick="window.print()">
+            <i class="fas fa-print"></i> Print
+        </button>
+        <button class="btn btn-back" onclick="history.back()">
+            <i class="fas fa-arrow-left"></i> Back
+        </button>
+    </div>
 
-            <!-- Right: Contact Info -->
-            <div class="text-right">
-                <div class="text-sm text-gray-600 space-y-1">
-                    <p class="mt-2"><strong>Head Office:</strong> House 48, Road 02, Block L,</p>
+    <div class="page-container">
+        <div class="content-wrap">
+            <!-- Header -->
+            <div class="header">
+                <div class="company-identity">
+                    <img src="images/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
+                    <div class="company-text">
+                        <h1>Protection One (Pvt.) Ltd.</h1>
+                        <p>A Complete Security Solution</p>
+                    </div>
+                </div>
+                <div class="company-address">
+                    <p><strong>Head Office:</strong> House 48, Road 02, Block L,</p>
                     <p>Banani, Dhaka- 1213, Bangladesh</p>
-                    <p><i class="fas fa-phone-alt mr-1"></i> +880 1755-551912</p>
-                    <p><i class="fas fa-envelope mr-1"></i> info@protectionone.com.bd</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- INVOICE TITLE SECTION (Centered) -->
-        <div class="text-center mb-8">
-            <h2 class="text-4xl font-bold text-gray-800 tracking-widest uppercase inline-block pb-1">INVOICE</h2>
-            <p class="text-sm text-gray-500 mt-1 font-medium uppercase tracking-wide">Original Copy</p>
-        </div>
-
-        <!-- INFO GRID (Bill To & Meta Data) -->
-        <div class="flex justify-between mb-8 gap-8">
-            
-            <!-- Client Info -->
-            <div class="w-1/2">
-                <h3 class="text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">Bill To:</h3>
-                <div class="bg-gray-50 p-4 rounded border border-gray-100">
-                    <!-- Removed fallback 'Walk-in Client' -->
-                    <div class="text-gray-900 font-bold text-lg"><?php echo htmlspecialchars($invoice['Company_Name'] ?? ''); ?></div>
-                    <div class="text-gray-700 font-medium"><?php echo htmlspecialchars($invoice['Branch_Name'] ?? ''); ?></div>
-                    <div class="text-sm text-gray-600 mt-2 whitespace-pre-line leading-relaxed"><?php echo htmlspecialchars($invoice['Branch_Address'] ?? $invoice['Head_Address']); ?></div>
-                    <?php if(!empty($invoice['Contact_Number'])): ?>
-                        <div class="text-sm text-gray-600 mt-2"><span class="font-semibold">Contact:</span> <?php echo htmlspecialchars($invoice['Contact_Number']); ?></div>
-                    <?php endif; ?>
+                    <p><i class="fas fa-phone-alt"></i> +880 1755-551912</p>
+                    <p><i class="fas fa-envelope"></i> info@protectionone.com.bd</p>
                 </div>
             </div>
 
-            <!-- Invoice Meta -->
-            <div class="w-1/2 text-right flex flex-col justify-end">
-                <table class="w-full text-sm">
+            <!-- Title -->
+            <div class="invoice-title">
+                <h2>INVOICE</h2>
+                <span>Original Copy</span>
+            </div>
+
+            <!-- Info Grid -->
+            <div class="info-grid">
+                <div class="bill-to">
+                    <div class="bill-label">Bill To:</div>
+                    <div class="bill-box">
+                        <div class="client-name"><?php echo htmlspecialchars($client_name ?: 'Walk-in Client'); ?></div>
+                        <div class="client-addr"><?php echo htmlspecialchars($invoice['Branch_Address'] ?? $invoice['Head_Address'] ?? ''); ?></div>
+                        <?php if(!empty($invoice['Contact_Number'])): ?>
+                            <div class="client-contact"><strong>Tel:</strong> <?php echo htmlspecialchars($invoice['Contact_Number']); ?></div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="meta-info">
+                    <table class="meta-table">
+                        <tr>
+                            <td class="meta-key">Invoice No:</td>
+                            <td class="meta-val"><?php echo htmlspecialchars($invoice['Invoice_No']); ?></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-key">Date:</td>
+                            <td class="meta-val"><?php echo date('d-M-Y', strtotime($invoice['invoice_date'])); ?></td>
+                        </tr>
+                        <?php if(!empty($invoice['WO_No'])): ?>
+                        <tr>
+                            <td class="meta-key">Work Order:</td>
+                            <td class="meta-val"><?php echo htmlspecialchars($invoice['WO_No']); ?></td>
+                        </tr>
+                        <?php endif; ?>
+                        <tr>
+                            <td class="meta-key">Sales Person:</td>
+                            <td class="meta-val"><?php echo htmlspecialchars($invoice['Created_By_User'] ?? '-'); ?></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Items -->
+            <table class="items-table">
+                <thead>
                     <tr>
-                        <td class="text-gray-500 font-medium py-1">Invoice No:</td>
-                        <td class="text-gray-900 font-bold py-1"><?php echo htmlspecialchars($invoice['Invoice_No']); ?></td>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 45%;">Description</th>
+                        <th style="width: 15%;" class="col-center">Warranty</th>
+                        <th style="width: 10%;" class="col-right">Qty</th>
+                        <th style="width: 12%;" class="col-right">Unit Price</th>
+                        <th style="width: 13%;" class="col-right">Total</th>
                     </tr>
+                </thead>
+                <tbody>
+                    <?php 
+                    $count = 1;
+                    foreach ($grouped_items as $item): 
+                        $line_total = $item['quantity'] * $item['unit_price'];
+                    ?>
                     <tr>
-                        <td class="text-gray-500 font-medium py-1">Date:</td>
-                        <td class="text-gray-900 font-semibold py-1"><?php echo date('F d, Y', strtotime($invoice['invoice_date'])); ?></td>
+                        <td><?php echo $count++; ?></td>
+                        <td>
+                            <div style="font-weight:600;"><?php echo htmlspecialchars($item['description']); ?></div>
+                            <?php if(!empty($item['serials'])): ?>
+                                <div style="font-size:10px; color:#555; margin-top:2px;">
+                                    SN: <?php echo htmlspecialchars(implode(', ', $item['serials'])); ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="col-center"><?php echo htmlspecialchars($item['warranty'] ?? '-'); ?></td>
+                        <td class="col-right"><?php echo $item['quantity']; ?></td>
+                        <td class="col-right"><?php echo number_format($item['unit_price'], 2); ?></td>
+                        <td class="col-right" style="font-weight:700;"><?php echo number_format($line_total, 2); ?></td>
                     </tr>
-                    <?php if(!empty($invoice['WO_No'])): ?>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <!-- Totals -->
+            <div class="totals-container">
+                <table class="totals-table">
                     <tr>
-                        <td class="text-gray-500 font-medium py-1">Work Order:</td>
-                        <td class="text-gray-900 font-semibold py-1"><?php echo htmlspecialchars($invoice['WO_No']); ?></td>
+                        <td class="t-label">Sub Total</td>
+                        <td class="t-val"><?php echo number_format($invoice['sub_total'], 2); ?></td>
+                    </tr>
+                    <?php if($tax_amount > 0): ?>
+                    <tr>
+                        <td class="t-label">Tax (<?php echo number_format($invoice['Tax_Percentage'], 0); ?>%)</td>
+                        <td class="t-val"><?php echo number_format($tax_amount, 2); ?></td>
                     </tr>
                     <?php endif; ?>
+                    <?php 
+                        $calc_grand = $invoice['sub_total'] + $tax_amount;
+                        $discount = $calc_grand - $invoice['grand_total'];
+                        if($discount > 0.01):
+                    ?>
                     <tr>
-                        <td class="text-gray-500 font-medium py-1">Sales Person:</td>
-                        <td class="text-gray-900 py-1"><?php echo htmlspecialchars($invoice['Created_By_User'] ?? 'N/A'); ?></td>
+                        <td class="t-label" style="color:red;">Discount</td>
+                        <td class="t-val" style="color:red;">- <?php echo number_format($discount, 2); ?></td>
+                    </tr>
+                    <?php endif; ?>
+                    <tr class="grand-total">
+                        <td class="t-label" style="color:#000; font-size:14px;">TOTAL</td>
+                        <td class="t-val" style="font-size:16px;"><?php echo number_format($invoice['grand_total'], 2); ?></td>
                     </tr>
                 </table>
             </div>
         </div>
 
-        <!-- ITEMS TABLE -->
-        <div class="overflow-hidden border rounded-lg mb-8">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-800 text-white">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">#</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider w-1/2">Description</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider">Warranty</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider">Qty</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider">Unit Price</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider">Total</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    <?php 
-                    $counter = 1;
-                    foreach($grouped_items as $item): 
-                        $line_total = $item['quantity'] * $item['unit_price'];
-                    ?>
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3 text-sm text-gray-500 align-top"><?php echo $counter++; ?></td>
-                        <td class="px-4 py-3 text-sm text-gray-800 align-top">
-                            <div class="font-bold text-gray-900"><?php echo htmlspecialchars($item['description']); ?></div>
-                            <!-- Serials on bottom line separated by commas -->
-                            <?php if(!empty($item['serials'])): ?>
-                                <div class="text-xs text-gray-500 italic mt-1">
-                                    SN: <?php echo htmlspecialchars(implode(', ', $item['serials'])); ?>
-                                </div>
-                            <?php endif; ?>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-center text-gray-600 align-top">
-                            <?php echo htmlspecialchars($item['warranty'] ?? 'N/A'); ?>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-800 align-top"><?php echo $item['quantity']; ?></td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-800 align-top"><?php echo number_format($item['unit_price'], 2); ?></td>
-                        <td class="px-4 py-3 text-sm text-right font-medium text-gray-900 align-top"><?php echo number_format($line_total, 2); ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- TOTALS SECTION -->
-        <div class="flex justify-end mb-12">
-            <div class="w-1/2 md:w-5/12">
-                <div class="flex justify-between py-2 border-b border-gray-100">
-                    <span class="text-gray-600 text-sm font-medium">Sub Total</span>
-                    <span class="text-gray-900 font-bold"><?php echo number_format($invoice['sub_total'], 2); ?></span>
+        <!-- Absolute Bottom Signatures & Footer -->
+        <div class="footer-wrap">
+            <div class="signatures">
+                <div class="sig-box">
+                    <div class="sig-line"></div>
+                    <div class="sig-text">Customer Signature</div>
                 </div>
-                
-                <?php if($tax_amount > 0): ?>
-                <div class="flex justify-between py-2 border-b border-gray-100">
-                    <span class="text-gray-600 text-sm">Tax (<?php echo number_format($invoice['Tax_Percentage'], 2); ?>%)</span>
-                    <span class="text-gray-900 font-semibold"><?php echo number_format($tax_amount, 2); ?></span>
-                </div>
-                <?php endif; ?>
-                
-                <!-- Calculate discount if implied (Sub+Tax - Grand) -->
-                <?php 
-                    $calculated_grand = $invoice['sub_total'] + $tax_amount;
-                    $discount_val = $calculated_grand - $invoice['grand_total'];
-                    if($discount_val > 0.01): 
-                ?>
-                <div class="flex justify-between py-2 border-b border-gray-100">
-                    <span class="text-gray-600 text-sm">Discount</span>
-                    <span class="text-red-600 font-semibold">- <?php echo number_format($discount_val, 2); ?></span>
-                </div>
-                <?php endif; ?>
-                
-                <div class="flex justify-between py-4 border-t-2 border-gray-800 mt-2 items-center">
-                    <span class="text-gray-800 font-bold text-xl">Total</span>
-                    <span class="text-gray-900 font-bold text-2xl"><?php echo number_format($invoice['grand_total'], 2); ?></span>
+                <div class="sig-box">
+                    <div class="sig-line"></div>
+                    <div class="sig-text">Authorized Signature</div>
                 </div>
             </div>
-        </div>
 
-        <!-- FOOTER / SIGNATURES -->
-        <div class="mt-12 pt-4 grid grid-cols-2 gap-12">
-            <div class="text-center mt-12">
-                <div class="border-t border-gray-400 w-3/4 mx-auto"></div>
-                <p class="text-xs text-gray-500 mt-2 uppercase tracking-wide">Customer Signature</p>
-            </div>
-            <div class="text-center mt-12">
-                <div class="border-t border-gray-400 w-3/4 mx-auto"></div>
-                <p class="text-xs text-gray-500 mt-2 uppercase tracking-wide">Authorized Signature</p>
+            <!-- Thank You / Contact Footer (Moved here) -->
+            <div class="thank-you">
+                <p>Thank you for choosing Protection One!</p>
+                <p>For support: +880 1755-551912 | info@protectionone.com.bd</p>
             </div>
         </div>
-        
-        <div class="text-center text-xs text-gray-400 mt-12 border-t pt-4">
-            <p>Thank you for choosing Protection One!</p>
-            <p class="mt-1">For support, please contact: +880 1755-551912 or info@protectionone.com.bd</p>
-        </div>
-
     </div>
 
     <?php if($is_print): ?>
     <script>
         window.onload = function() {
-            setTimeout(function() {
-                window.print();
-            }, 500); // Small delay to ensure logo loads
+            setTimeout(function() { window.print(); }, 500);
         }
     </script>
     <?php endif; ?>
