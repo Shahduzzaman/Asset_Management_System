@@ -124,7 +124,7 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
             background: white;
             margin: 0px auto;
             /* Reduced top and bottom padding to remove empty space */
-            padding: 8mm 15mm 5mm 15mm; /* Top, Right, Bottom, Left */
+            padding: 2mm 10mm 2mm 10mm; /* Top, Right, Bottom, Left */
             position: relative;
             box-shadow: 0 0 10px rgba(0,0,0,0.3);
             display: flex;
@@ -331,8 +331,7 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
                 margin: 0;
                 box-shadow: none;
                 border: none;
-                /* Ensure padding is respected in print */
-                padding: 8mm 15mm 5mm 15mm;
+                padding: 2mm 10mm 2mm 10mm;
             }
             .no-print { display: none !important; }
             /* Force background graphics if any (though we removed bg colors) */
