@@ -335,7 +335,10 @@ $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
             }
             .no-print { display: none !important; }
             /* Force background graphics if any (though we removed bg colors) */
-            -webkit-print-color-adjust: exact; 
+            * { 
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
 
         /* UI Buttons (No Print) */
