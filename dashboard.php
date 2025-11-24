@@ -93,9 +93,14 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
                 Vendor Ledger
             </a>
             
+            <a href="invoice_list.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
+                Invoice
+            </a>
+
             <a href="my_profile.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
                 My Profile
             </a>
+
             <a href="trash.php" class="bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-gray-700 transition-transform transform hover:scale-105 duration-300">
                 Trash
             </a>
