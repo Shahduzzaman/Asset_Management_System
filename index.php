@@ -55,7 +55,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt->bind_result($user_id, $user_name, $password_hash, $user_role, $branch_id, $branch_name);
             
             // Fetch the result
-            if ($stmt->fetch()) {
+            if ($stmt->fetch() && $password_hash !== null) {
                 // Verify the password against the stored hash
                 if (password_verify($password, $password_hash)) {
                     // Password is correct, start a new session
