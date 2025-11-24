@@ -69,9 +69,6 @@ $result = $conn->query($sql);
     <div class="bg-white shadow p-4 flex items-center justify-between mb-6 sticky top-0 z-10">
         <h1 class="text-2xl font-bold text-gray-800">Invoice History</h1>
         <div>
-            <a href="sold_product.php" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 mr-2">
-                <i class="fas fa-plus mr-2"></i>New Sale
-            </a>
             <a href="dashboard.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
                 <i class="fas fa-arrow-left mr-2"></i>Dashboard
             </a>
