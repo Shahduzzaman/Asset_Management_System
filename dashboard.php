@@ -99,6 +99,10 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
                 Invoice
             </a>
 
+            <a href="returns.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
+                Sales Return List
+            </a>
+
             <a href="my_profile.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
                 My Profile
             </a>
