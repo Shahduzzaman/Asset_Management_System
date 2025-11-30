@@ -1,0 +1,48 @@
+-- --------------------------------------------------------
+-- Table structure for table `sales_return`
+-- --------------------------------------------------------
+
+CREATE TABLE `sales_return` (
+  `sales_return_id` int(11) NOT NULL,
+  `invoice_id_fk` int(11) DEFAULT NULL,
+  `invoice_number` varchar(100) DEFAULT NULL,
+  `return_date` datetime NOT NULL,
+  `received_product_sl_id_fk` int(11) NOT NULL COMMENT 'The specific product serial ID being returned',
+  `replace_product_sl_id_fk` int(11) DEFAULT NULL COMMENT 'The replacement product serial ID, nullable if refund only',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) NOT NULL,
+  `is_updated` tinyint(1) DEFAULT 0,
+  `is_deleted` tinyint(1) DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Indexes for table `sales_return`
+--
+ALTER TABLE `sales_return`
+  ADD PRIMARY KEY (`sales_return_id`),
+  ADD KEY `fk_sr_invoice` (`invoice_id_fk`),
+  ADD KEY `fk_sr_received_product` (`received_product_sl_id_fk`),
+  ADD KEY `fk_sr_replace_product` (`replace_product_sl_id_fk`),
+  ADD KEY `fk_sr_created_by` (`created_by`);
+
+--
+-- AUTO_INCREMENT for table `sales_return`
+--
+ALTER TABLE `sales_return`
+  MODIFY `sales_return_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- Constraints for table `sales_return`
+--
+ALTER TABLE `sales_return`
+  -- Links to the invoice table. If invoice is deleted, set this to NULL to preserve the return record.
+  ADD CONSTRAINT `fk_sr_invoice` FOREIGN KEY (`invoice_id_fk`) REFERENCES `invoice` (`invoice_id`) ON DELETE SET NULL,
+  
+  -- Links to product_sl for the item coming BACK into inventory
+  ADD CONSTRAINT `fk_sr_received_product` FOREIGN KEY (`received_product_sl_id_fk`) REFERENCES `product_sl` (`sl_id`) ON DELETE NO ACTION,
+  
+  -- Links to product_sl for the item going OUT as replacement
+  ADD CONSTRAINT `fk_sr_replace_product` FOREIGN KEY (`replace_product_sl_id_fk`) REFERENCES `product_sl` (`sl_id`) ON DELETE SET NULL,
+  
+  -- Links to the user who processed the return
+  ADD CONSTRAINT `fk_sr_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`);
