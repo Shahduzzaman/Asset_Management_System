@@ -2,17 +2,29 @@
 session_start();
 require_once 'connection.php';
 
-if (!isset($_SESSION['user_id'])) {
+// --- Session & Security Checks ---
+$idleTimeout = 1800; 
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $idleTimeout)) {
+    session_unset();
+    session_destroy();
+    header("Location: index.php?reason=idle");
+    exit();
+}
+$_SESSION['last_activity'] = time();
+
+if (!isset($_SESSION["user_id"])) {
     header("Location: index.php");
     exit();
 }
 
 $user_id = (int)$_SESSION['user_id'];
 
+// Fetch all sales returns with joined info
 $sql = "SELECT 
             sr.sales_return_id,
             sr.invoice_number,
             sr.return_date,
+            sr.created_by,
             rp.product_sl AS returned_serial,
             rp.status AS returned_status,
             m1.model_name AS returned_model,
@@ -28,197 +40,201 @@ $sql = "SELECT
 
 $result = $conn->query($sql);
 
+// Helper function to convert status code to text
 function statusText($code) {
-    switch ($code) {
-        case 0: return "In Stock";
-        case 1: return "Sold";
-        case 2: return "Returned";
-        case 3: return "Damaged";
-        case 4: return "Replaced";
-        default: return "Unknown";
+    switch ((int)$code) {
+        case 0: return 'In Stock';
+        case 1: return 'Sold';
+        case 2: return 'Returned';
+        case 3: return 'Damaged';
+        case 4: return 'Replaced';
+        default: return 'Unknown';
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Sales Returns List</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<style>
-.modal-side-by-side {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-.product-card {
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 1rem;
-    width: 45%;
-    min-width: 280px;
-    box-shadow: 0 0 5px rgba(0,0,0,0.1);
-}
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sales Returns Listing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        .modal-side-by-side {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .product-card {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 1rem;
+            width: 45%;
+            min-width: 280px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        }
+        .product-card h5 {
+            margin-bottom: 1rem;
+        }
+    </style>
 </head>
 <body>
-
 <div class="container py-4">
-<h2>Sales Returns List</h2>
-
-<table class="table table-bordered">
-<thead class="table-primary">
-<tr>
-    <th>ID</th>
-    <th>Invoice</th>
-    <th>Return Date</th>
-    <th>Returned</th>
-    <th>Replacement</th>
-    <th>Action</th>
-</tr>
-</thead>
-<tbody>
-
-<?php while ($row = $result->fetch_assoc()): ?>
-<tr>
-    <td><?= $row['sales_return_id'] ?></td>
-    <td><?= $row['invoice_number'] ?></td>
-    <td><?= date("Y-m-d H:i", strtotime($row['return_date'])) ?></td>
-
-    <td>
-        <b>Serial:</b> <?= $row['returned_serial'] ?><br>
-        <b>Model:</b> <?= $row['returned_model'] ?><br>
-        <b>Status:</b> <?= statusText($row['returned_status']) ?>
-    </td>
-
-    <td>
-        <?php if ($row['replacement_serial']): ?>
-            <b>Serial:</b> <?= $row['replacement_serial'] ?><br>
-            <b>Model:</b> <?= $row['replacement_model'] ?><br>
-            <b>Status:</b> <?= statusText($row['replacement_status']) ?>
-        <?php else: ?>
-            <i>No Replacement</i>
-        <?php endif; ?>
-    </td>
-
-    <td>
-        <button class="btn btn-info btn-sm btn-view-details" data-id="<?= $row['sales_return_id'] ?>">View Details</button>
-    </td>
-</tr>
-<?php endwhile; ?>
-
-</tbody>
-</table>
-</div>
-
-
-<!-- MODAL -->
-<div class="modal fade" id="returnDetailsModal">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-
-      <div class="modal-header">
-        <h5 class="modal-title">Return Details</h5>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-
-      <div class="modal-body">
-
-        <div class="modal-side-by-side">
-
-            <div class="product-card">
-                <h5>Returned Product</h5>
-                <p><b>Serial:</b> <span id="retSerial">-</span></p>
-                <p><b>Model:</b> <span id="retModel">-</span></p>
-                <p><b>Status:</b> <span id="retStatus">-</span></p>
-            </div>
-
-            <div class="product-card">
-                <h5>Replacement Product</h5>
-                <p><b>Serial:</b> <span id="repSerial">-</span></p>
-                <p><b>Model:</b> <span id="repModel">-</span></p>
-                <p><b>Status:</b> <span id="repStatus">-</span></p>
-            </div>
-
-        </div>
-
-        <hr>
-
-        <h6><b>Client Information</b></h6>
-        <p><b>Name:</b> <span id="clientName">-</span></p>
-        <p><b>Department:</b> <span id="clientDept">-</span></p>
-        <p><b>Contact Person:</b> <span id="clientCP">-</span></p>
-        <p><b>Contact Number:</b> <span id="clientCN">-</span></p>
-        <p><b>Address:</b> <span id="clientAddress">-</span></p>
-
-        <hr>
-
-        <h6><b>Other Return Info</b></h6>
-        <p><b>Invoice Number:</b> <span id="infoInvoice">-</span></p>
-        <p><b>Return Date:</b> <span id="infoReturnDate">-</span></p>
-        <p><b>Created By:</b> <span id="infoCreatedBy">-</span></p>
-
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-      </div>
-
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 fw-bold text-dark">Sales Return List</h1>
+        <a href="dashboard.php" class="btn btn-primary fw-semibold px-4 py-2 rounded-3">
+            &larr; Back to Dashboard
+        </a>
     </div>
-  </div>
+    <table class="table table-striped table-bordered align-middle">
+        <thead class="table-primary">
+            <tr>
+                <th>ID</th>
+                <th>Invoice Number</th>
+                <th>Return Date</th>
+                <th>Returned Product</th>
+                <th>Replacement Product</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php if ($result && $result->num_rows > 0): ?>
+            <?php while ($row = $result->fetch_assoc()): ?>
+                <tr>
+                    <td><?= htmlspecialchars($row['sales_return_id']) ?></td>
+                    <td><?= htmlspecialchars($row['invoice_number']) ?></td>
+                    <td><?= htmlspecialchars(date('Y-m-d H:i', strtotime($row['return_date']))) ?></td>
+                    <td>
+                        <strong>Serial:</strong> <?= htmlspecialchars($row['returned_serial'] ?? '-') ?><br/>
+                        <strong>Model:</strong> <?= htmlspecialchars($row['returned_model'] ?? '-') ?><br/>
+                        <strong>Status:</strong> <?= htmlspecialchars(statusText($row['returned_status'])) ?>
+                    </td>
+                    <td>
+                        <?php if ($row['replacement_serial']): ?>
+                            <strong>Serial:</strong> <?= htmlspecialchars($row['replacement_serial']) ?><br/>
+                            <strong>Model:</strong> <?= htmlspecialchars($row['replacement_model']) ?><br/>
+                            <strong>Status:</strong> <?= htmlspecialchars(statusText($row['replacement_status'])) ?>
+                        <?php else: ?>
+                            <em>No Replacement</em>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-info btn-view-details" data-id="<?= $row['sales_return_id'] ?>">
+                            View Details
+                        </button>
+                    </td>
+                </tr>
+            <?php endwhile; ?>
+        <?php else: ?>
+            <tr><td colspan="6" class="text-center">No returns found.</td></tr>
+        <?php endif; ?>
+        </tbody>
+    </table>
 </div>
 
+<!-- Modal -->
+<div class="modal fade" id="returnDetailsModal" tabindex="-1" aria-labelledby="returnDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="returnDetailsModalLabel">Return Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Content filled by AJAX -->
+                <div id="modalContent" class="modal-side-by-side">
+                    <div class="product-card" id="returnedProductCard">
+                        <h5>Returned Product</h5>
+                        <div><strong>Serial:</strong> <span id="retSerial">-</span></div>
+                        <div><strong>Model:</strong> <span id="retModel">-</span></div>
+                        <div><strong>Status:</strong> <span id="retStatus">-</span></div>
+                    </div>
+                    <div class="product-card" id="replacementProductCard">
+                        <h5>Replacement Product</h5>
+                        <div><strong>Serial:</strong> <span id="repSerial">-</span></div>
+                        <div><strong>Model:</strong> <span id="repModel">-</span></div>
+                        <div><strong>Status:</strong> <span id="repStatus">-</span></div>
+                    </div>
+                </div>
+                <hr />
+                <div>
+                    <h6>Other Return Info</h6>
+                    <p><strong>Invoice Number:</strong> <span id="infoInvoice">-</span></p>
+                    <p><strong>Return Date:</strong> <span id="infoReturnDate">-</span></p>
+                    <p><strong>Created By:</strong> <span id="infoCreatedBy">-</span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
 <script>
-$(".btn-view-details").click(function () {
-
-    var id = $(this).data("id");
-
-    $("#retSerial,#retModel,#retStatus,#repSerial,#repModel,#repStatus,#clientName,#clientDept,#clientCP,#clientCN,#clientAddress,#infoInvoice,#infoReturnDate,#infoCreatedBy")
-        .text("Loading...");
-
-    var modal = new bootstrap.Modal(document.getElementById("returnDetailsModal"));
-    modal.show();
-
-    $.get("fetch_return_details.php", { id: id }, function (res) {
-
-        if (res.status !== "success") {
-            alert("Error: " + res.message);
-            modal.hide();
-            return;
+    function statusText(statusCode) {
+        switch (parseInt(statusCode)) {
+            case 0: return 'In Stock';
+            case 1: return 'Sold';
+            case 2: return 'Returned';
+            case 3: return 'Damaged';
+            case 4: return 'Replaced';
+            default: return 'Unknown';
         }
+    }
 
-        $("#retSerial").text(res.data.returned_product.serial);
-        $("#retModel").text(res.data.returned_product.model);
-        $("#retStatus").text(statusText(res.data.returned_product.status));
+    $(document).ready(function() {
+        $('.btn-view-details').on('click', function() {
+            var returnId = $(this).data('id');
 
-        if (res.data.replacement_product) {
-            $("#repSerial").text(res.data.replacement_product.serial);
-            $("#repModel").text(res.data.replacement_product.model);
-            $("#repStatus").text(statusText(res.data.replacement_product.status));
-        } else {
-            $("#repSerial").text("-");
-            $("#repModel").text("-");
-            $("#repStatus").text("No Replacement");
-        }
+            // Clear modal content while loading
+            $('#retSerial, #retModel, #retStatus, #repSerial, #repModel, #repStatus, #infoInvoice, #infoReturnDate, #infoCreatedBy').text('Loading...');
 
-        $("#clientName").text(res.data.client.name);
-        $("#clientDept").text(res.data.client.department);
-        $("#clientCP").text(res.data.client.contact_person);
-        $("#clientCN").text(res.data.client.contact_number);
-        $("#clientAddress").text(res.data.client.address);
+            // Show modal
+            var modal = new bootstrap.Modal(document.getElementById('returnDetailsModal'));
+            modal.show();
 
-        $("#infoInvoice").text(res.data.invoice_number);
-        $("#infoReturnDate").text(res.data.return_date);
-        $("#infoCreatedBy").text(res.data.created_by_name);
+            // Fetch details via AJAX
+            $.ajax({
+                url: 'fetch_return_details.php',
+                method: 'GET',
+                data: { id: returnId },
+                dataType: 'json',
+                success: function(res) {
+                    if (res.status === 'success') {
+                        $('#retSerial').text(res.data.returned_product.serial);
+                        $('#retModel').text(res.data.returned_product.model);
+                        $('#retStatus').text(statusText(res.data.returned_product.status));
 
-    }, "json");
-});
+                        if (res.data.replacement_product) {
+                            $('#repSerial').text(res.data.replacement_product.serial);
+                            $('#repModel').text(res.data.replacement_product.model);
+                            $('#repStatus').text(statusText(res.data.replacement_product.status));
+                        } else {
+                            $('#repSerial').text('-');
+                            $('#repModel').text('-');
+                            $('#repStatus').text('No Replacement');
+                        }
+
+                        $('#infoInvoice').text(res.data.invoice_number);
+                        $('#infoReturnDate').text(res.data.return_date);
+                        $('#infoCreatedBy').text(res.data.created_by_name);
+                    } else {
+                        alert('Error fetching details: ' + res.message);
+                        modal.hide();
+                    }
+                },
+                error: function() {
+                    alert('AJAX error loading return details.');
+                    modal.hide();
+                }
+            });
+        });
+    });
 </script>
-
 </body>
 </html>
