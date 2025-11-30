@@ -70,11 +70,13 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
                 Purchased Product
             </a>
 
-            <!-- === NEW BUTTON ADDED HERE === -->
             <a href="add_to_cart.php" class="bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-transform transform hover:scale-105 duration-300">
                 Sold Product
             </a>
-            <!-- === END NEW BUTTON === -->
+
+            <a href="Sales_Return.php" class="bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-transform transform hover:scale-105 duration-300">
+                Sales Return
+            </a>
 
              <a href="make_payment.php" class="bg-green-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-green-700 transition-transform transform hover:scale-105 duration-300">
                 Make Payment
