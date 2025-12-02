@@ -1,0 +1,38 @@
+-- --------------------------------------------------------
+-- Table structure for table `purchase_return`
+-- Description: Tracks items returned to vendors and potential replacements
+-- --------------------------------------------------------
+
+CREATE TABLE `purchase_return` (
+  `purchase_return_id` int(11) NOT NULL AUTO_INCREMENT,
+  `vendor_id_fk` int(11) NOT NULL COMMENT 'The vendor receiving the return',
+  `returned_product_sl_id_fk` int(11) NOT NULL COMMENT 'The specific serial ID being returned',
+  `replacement_product_sl_id_fk` int(11) DEFAULT NULL COMMENT 'The new serial ID received (if swap occurred)',
+  `po_reference` varchar(255) DEFAULT NULL COMMENT 'Optional: Purchase Order number associated with the return',
+  `reason` text DEFAULT NULL COMMENT 'Reason for returning the item',
+  `return_date` datetime NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`purchase_return_id`),
+  KEY `idx_pr_vendor` (`vendor_id_fk`),
+  KEY `idx_pr_returned` (`returned_product_sl_id_fk`),
+  KEY `idx_pr_replacement` (`replacement_product_sl_id_fk`),
+  KEY `idx_pr_creator` (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+-- Constraints for table `purchase_return`
+-- --------------------------------------------------------
+
+ALTER TABLE `purchase_return`
+  -- Link to Vendors table (using Vendor_Id as defined in your schema)
+  ADD CONSTRAINT `fk_pr_vendor` FOREIGN KEY (`vendor_id_fk`) REFERENCES `vendors` (`Vendor_Id`) ON DELETE CASCADE,
+
+  -- Link to Product Serial table for the item LEAVING inventory
+  ADD CONSTRAINT `fk_pr_returned_item` FOREIGN KEY (`returned_product_sl_id_fk`) REFERENCES `product_sl` (`sl_id`) ON DELETE NO ACTION,
+
+  -- Link to Product Serial table for the item ENTERING inventory (optional)
+  ADD CONSTRAINT `fk_pr_replacement_item` FOREIGN KEY (`replacement_product_sl_id_fk`) REFERENCES `product_sl` (`sl_id`) ON DELETE SET NULL,
+
+  -- Link to Users table
+  ADD CONSTRAINT `fk_pr_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`);
