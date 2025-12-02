@@ -41,7 +41,7 @@ if ($resVendors) {
 
 // Fetch All Potential Return Items (exclude status = 1 or 4)
 $productsList = [];
-$sqlProducts = "SELECT p.sl_id, p.product_sl, p.model_id_fk, (SELECT model_name FROM models m WHERE m.model_id = p.model_id_fk LIMIT 1) AS model_name
+$sqlProducts = "SELECT p.sl_id, p.product_sl, p.model_id_fk, p.purchase_id_fk, (SELECT model_name FROM models m WHERE m.model_id = p.model_id_fk LIMIT 1) AS model_name
                 FROM product_sl p
                 WHERE p.status NOT IN (1,4)
                 ORDER BY p.product_sl ASC";
@@ -52,57 +52,78 @@ if ($resProducts) {
     }
 }
 
-// --- 3. HANDLE AJAX REQUESTS (Only for Replacement Check) ---
-if (isset($_GET['action']) && $_GET['action'] === 'check_serial') {
+// --- 3. HANDLE AJAX REQUESTS ---
+if (isset($_GET['action'])) {
     header('Content-Type: application/json');
-    $serial = $_GET['serial'] ?? '';
-    
-    // Query product_sl table
-    $sql = "SELECT sl_id, product_sl, status, model_id_fk FROM product_sl WHERE product_sl = ? LIMIT 1";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $serial);
-    $stmt->execute();
-    $res = $stmt->get_result();
+    $action = $_GET['action'];
 
-    if ($row = $res->fetch_assoc()) {
-        echo json_encode(['status' => 'success', 'data' => $row]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'Serial number not found in system.']);
+    if ($action === 'check_serial') {
+        $serial = $_GET['serial'] ?? '';
+        $sql = "SELECT sl_id, product_sl, status, model_id_fk, purchase_id_fk FROM product_sl WHERE product_sl = ? LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $serial);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($row = $res->fetch_assoc()) {
+            echo json_encode(['status' => 'success', 'data' => $row]);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Serial number not found in system.']);
+        }
+        exit;
     }
-    exit;
+
+    if ($action === 'get_price') {
+        $sl_id = isset($_GET['sl_id']) ? (int)$_GET['sl_id'] : 0;
+        if (!$sl_id) { echo json_encode(['status'=>'error','message'=>'Invalid SL']); exit; }
+
+        // get purchase_id_fk from product_sl and then unit_price from purchased_products
+        $sql = "SELECT p.purchase_id_fk, pp.unit_price
+                FROM product_sl p
+                LEFT JOIN purchased_products pp ON pp.purchase_id = p.purchase_id_fk
+                WHERE p.sl_id = ? LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $sl_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($row = $res->fetch_assoc()) {
+            $price = $row['unit_price'] !== null ? (float)$row['unit_price'] : null;
+            echo json_encode(['status'=>'success','price'=>$price]);
+        } else {
+            echo json_encode(['status'=>'error','message'=>'Price not found']);
+        }
+        exit;
+    }
 }
 
 // --- 4. HANDLE FORM SUBMISSION ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
-    
     $vendor_id = (int)$_POST['vendor_id'];
     $returned_sl_id = (int)$_POST['returned_sl_id'];
     $replacement_sl_id = !empty($_POST['replacement_sl_id']) ? (int)$_POST['replacement_sl_id'] : NULL;
     $reason = trim($_POST['reason']);
-    // Use the submitted date (no PO fields anywhere)
-    $return_date = $_POST['return_date'] . ' ' . date('H:i:s'); // Append current time to selected date
+    $price = isset($_POST['price']) ? (float)$_POST['price'] : 0.00; // returned price (may be reduced)
+    $return_date = $_POST['return_date'] . ' ' . date('H:i:s'); // Append current time
 
     if (!$vendor_id || !$returned_sl_id) {
         $message = "Error: Vendor and Returned Product are required.";
         $messageType = "danger";
     } else {
-        // Start Transaction
         $conn->begin_transaction();
         try {
-            // 1. Insert into purchase_return (PO removed)
+            // 1. Insert into purchase_return (po_reference removed, price added)
             $sqlInsert = "INSERT INTO purchase_return 
-                          (vendor_id_fk, returned_product_sl_id_fk, replacement_product_sl_id_fk, reason, return_date, created_by) 
-                          VALUES (?, ?, ?, ?, ?, ?)";
-            
+                          (vendor_id_fk, returned_product_sl_id_fk, replacement_product_sl_id_fk, price, reason, return_date, created_by) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?)";
+
             $stmt = $conn->prepare($sqlInsert);
-            $stmt->bind_param("iiissi", $vendor_id, $returned_sl_id, $replacement_sl_id, $reason, $return_date, $user_id);
-            
+            // types: i (vendor), i (returned sl), i (replacement sl), d (price), s (reason), s (return_date), i (created_by)
+            $stmt->bind_param("iiidssi", $vendor_id, $returned_sl_id, $replacement_sl_id, $price, $reason, $return_date, $user_id);
             if (!$stmt->execute()) {
                 throw new Exception("Failed to save return record: " . $stmt->error);
             }
 
-            // 2. Update Status of Returned Item -> set to 5
-            $sqlUpdateReturn = "UPDATE product_sl SET status = 5 WHERE sl_id = ?";
+            // 2. Update Status of Returned Item -> set to 2 (sales return / as requested)
+            $sqlUpdateReturn = "UPDATE product_sl SET status = 2 WHERE sl_id = ?";
             $stmtRet = $conn->prepare($sqlUpdateReturn);
             $stmtRet->bind_param("i", $returned_sl_id);
             $stmtRet->execute();
@@ -118,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
             $conn->commit();
             $message = "Purchase return processed successfully!";
             $messageType = "success";
-            
+
         } catch (Exception $e) {
             $conn->rollback();
             $message = "Error: " . $e->getMessage();
@@ -202,11 +223,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                                 <select name="returned_sl_id" id="returned_sl_id" class="form-select" required>
                                     <option value="">-- Select Product to Return --</option>
                                     <?php foreach ($productsList as $prod): ?>
-                                        <option value="<?php echo $prod['sl_id']; ?>">
+                                        <option value="<?php echo $prod['sl_id']; ?>" data-purchase-id="<?php echo $prod['purchase_id_fk']; ?>">
                                             <?php echo htmlspecialchars($prod['product_sl'] . ' (' . $prod['model_name'] . ')'); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
+
+                                <div class="mt-2">
+                                    <label class="form-label">Original Purchase Price</label>
+                                    <input type="text" id="originalPrice" class="form-control" readonly placeholder="Select serial to view price">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -220,6 +246,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                                 <input type="text" class="form-control" id="replacementSerial" placeholder="Scan or type serial">
                                 <input type="hidden" name="replacement_sl_id" id="replacementSlId">
                                 <div id="replacementFeedback" class="feedback"></div>
+
+                                <div class="mt-3">
+                                    <label class="form-label">Return Price (editable)</label>
+                                    <input type="number" step="0.01" name="price" id="price" class="form-control" required>
+                                    <div class="form-text">You can reduce the price before saving the return (e.g., restocking/penalty).</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -262,6 +294,33 @@ $(document).ready(function() {
         allowInput: true
     });
 
+    // When a returned serial is selected, fetch its real price and populate price field
+    $('#returned_sl_id').on('change', function() {
+        let sl_id = $(this).val();
+        if (!sl_id) {
+            $('#originalPrice').val('');
+            $('#price').val('');
+            return;
+        }
+
+        $.ajax({
+            url: '?action=get_price',
+            data: { sl_id: sl_id },
+            dataType: 'json',
+            success: function(res) {
+                if (res.status === 'success') {
+                    let p = res.price !== null ? parseFloat(res.price).toFixed(2) : '';
+                    $('#originalPrice').val(p);
+                    // set the editable return price default to the original price
+                    $('#price').val(p);
+                } else {
+                    $('#originalPrice').val('');
+                    $('#price').val('');
+                }
+            }
+        });
+    });
+
     // --- Check Replacement Product Logic ---
     $('#replacementSerial').on('blur', function() {
         let serial = $(this).val().trim();
@@ -277,7 +336,6 @@ $(document).ready(function() {
             dataType: 'json',
             success: function(res) {
                 if (res.status === 'success') {
-                    // Check if it matches the selected returned item ID
                     if (res.data.sl_id == $('#returned_sl_id').val()) {
                          $('#replacementSlId').val('');
                          $('#replacementFeedback').html('<span class="text-danger">Replacement cannot be the same as Returned item.</span>');
@@ -299,6 +357,14 @@ $(document).ready(function() {
         if (!$('#vendor_id').val() || !$('#returned_sl_id').val()) {
             e.preventDefault();
             alert('Please select a Vendor and a Product to return.');
+            return;
+        }
+        // price must be numeric and >= 0
+        let priceVal = parseFloat($('#price').val());
+        if (isNaN(priceVal) || priceVal < 0) {
+            e.preventDefault();
+            alert('Please enter a valid return price (0 or greater).');
+            return;
         }
     });
 });
