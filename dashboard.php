@@ -47,8 +47,6 @@ $topbarHeight = 64; // px - keep in sync with CSS if you change it
         /* when collapsed narrow width */
         .sidebar-collapsed { width: 5rem !important; } /* 80px */
         .sidebar-expanded { width: 16rem !important; } /* 256px */
-        /* small helper to visually centre icon-only links */
-        .icon-only { display:flex; justify-content:center; align-items:center; }
         /* ensure topbar contents vertically centered */
         .topbar-content { display:flex; align-items:center; height:var(--topbar-h); }
     </style>
@@ -59,9 +57,8 @@ $topbarHeight = 64; // px - keep in sync with CSS if you change it
 <header class="fixed top-0 left-0 right-0 z-40 bg-white shadow-sm border-b">
   <div class="topbar-content px-4 justify-between">
     <div class="flex items-center gap-3">
-      <!-- Sidebar toggle moved to the top-left as requested -->
+      <!-- Sidebar toggle at the top-left -->
       <button id="globalSidebarToggle" class="p-2 rounded-md hover:bg-gray-100" aria-label="Toggle sidebar" title="Toggle sidebar">
-        <!-- hamburger / chevron icon changes in JS -->
         <svg id="globalSidebarToggleIcon" class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
         </svg>
@@ -108,121 +105,95 @@ $topbarHeight = 64; // px - keep in sync with CSS if you change it
          style="width:16rem; min-width:5rem; max-width:22rem; overflow:auto;">
     <div class="flex items-center justify-between mb-3 px-1">
       <div class="flex items-center gap-2">
-        <button id="sidebarCollapseBtn" title="Collapse/Expand sidebar" class="p-2 rounded-md hover:bg-gray-100">
-          <svg id="sidebarCollapseIcon" class="w-5 h-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-            <!-- will update by JS -->
-            <path d="M6.28 5.22a.75.75 0 010 1.06L3.56 9l2.72 2.72a.75.75 0 11-1.06 1.06L2 9.53 5.22 6.28a.75.75 0 011.06 0zM13.72 5.22a.75.75 0 010 1.06L10.56 9l2.72 2.72a.75.75 0 11-1.06 1.06L9 9.53l3.22-3.25a.75.75 0 011.06 0z"/>
-          </svg>
-        </button>
         <span id="sidebarLabel" class="text-sm font-semibold text-gray-700">Navigation</span>
       </div>
       <div class="hidden md:block text-sm text-gray-500">Role: <?php echo $user_role === 1 ? 'Admin' : 'User'; ?></div>
     </div>
 
     <nav id="sidebarNav" class="space-y-1">
-      <!-- Links set data-target to page loaded into iframe -->
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="product_setup.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg></span>
+      <!-- Links set data-target to page loaded into iframe (text-only, no icons) -->
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="product_setup.php">
           <span class="link-text">Product Setup</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="add_vendor.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c2.21 0 4-1.79 4-4S14.21 3 12 3 8 4.79 8 7s1.79 4 4 4zM6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="add_vendor.php">
           <span class="link-text">Add Vendor</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="Add_Client.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 11h10M7 15h10"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="Add_Client.php">
           <span class="link-text">Add Client</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="add_work_order.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="add_work_order.php">
           <span class="link-text">Add Work Order</span>
       </a>
 
       <hr class="my-2">
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="purchase_product.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h18v4H3zM3 11h18v10H3z"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="purchase_product.php">
           <span class="link-text">Purchased Product</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="add_to_cart.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 6h12"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="add_to_cart.php">
           <span class="link-text">Sold Product</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="Purchase_Return.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2V12"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="Purchase_Return.php">
           <span class="link-text">Purchase Return</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="Sales_Return.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="Sales_Return.php">
           <span class="link-text">Sales Return</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="make_payment.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.567-3 3.5S10.343 15 12 15s3-1.567 3-3.5S13.657 8 12 8zM21 12v6a2 2 0 01-2 2H5"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="make_payment.php">
           <span class="link-text">Make Payment</span>
       </a>
 
       <hr class="my-2">
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="product_list.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4z"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="product_list.php">
           <span class="link-text">View Product</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="view_vendor.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 11h10M7 15h10"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="view_vendor.php">
           <span class="link-text">View Vendors</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="view_client.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5S7 4.24 7 7s2.24 5 5 5zM2 22c0-3 4-5 10-5s10 2 10 5"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="view_client.php">
           <span class="link-text">View Clients</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="ledger.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v8M8 12h8"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="ledger.php">
           <span class="link-text">Vendor Ledger</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="invoice_list.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 11h6M9 15h6M7 5h10v14H7z"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="invoice_list.php">
           <span class="link-text">Invoice</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="Purchased_Return_List.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="Purchased_Return_List.php">
           <span class="link-text font-semibold">Purchase Return List</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="returns.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 6h18M3 14h18"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="returns.php">
           <span class="link-text">Sales Return List</span>
       </a>
 
-      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700" data-target="my_profile.php">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c2.21 0 4-1.79 4-4S14.21 3 12 3 8 4.79 8 7s1.79 4 4 4zM4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg></span>
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700" data-target="my_profile.php">
           <span class="link-text">My Profile</span>
       </a>
 
-      <a href="logout.php" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-red-50 text-gray-700">
-          <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7"/></svg></span>
+      <a href="logout.php" class="block px-3 py-2 rounded-md hover:bg-red-50 text-gray-700">
           <span class="link-text">Logout</span>
       </a>
 
       <?php if ($user_role === 1): ?>
           <hr class="my-2">
-          <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="create_user.php">
-              <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16M8 8h8M8 16h8"/></svg></span>
+          <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="create_user.php">
               <span class="link-text">Create User</span>
           </a>
-          <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="manage_users.php">
-              <span class="icon-only w-6"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg></span>
+          <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="manage_users.php">
               <span class="link-text">Manage Users</span>
           </a>
       <?php endif; ?>
@@ -254,7 +225,7 @@ $topbarHeight = 64; // px - keep in sync with CSS if you change it
           </div>
       </div>
 
-      <!-- iframe container: occupies full remaining height (infinite vertical within iframe) -->
+      <!-- iframe container: occupies full remaining height (infinite vertical scroll inside iframe) -->
       <div id="frameWrap" class="hidden" style="height: calc(100vh - var(--topbar-h));">
           <iframe id="appFrame" name="appFrame" src="about:blank" title="Application Frame" frameborder="0"></iframe>
       </div>
@@ -290,9 +261,6 @@ $topbarHeight = 64; // px - keep in sync with CSS if you change it
 (function(){
     // Elements
     const sidebar = document.getElementById('sidebar');
-    const sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
-    const sidebarCollapseIcon = document.getElementById('sidebarCollapseIcon');
-    const sidebarLabel = document.getElementById('sidebarLabel');
     const links = document.querySelectorAll('.sidebar-link');
     const appFrame = document.getElementById('appFrame');
     const frameWrap = document.getElementById('frameWrap');
@@ -317,32 +285,22 @@ $topbarHeight = 64; // px - keep in sync with CSS if you change it
             sidebar.classList.add('sidebar-expanded');
             // show link text
             document.querySelectorAll('.link-text').forEach(el => el.classList.remove('hidden'));
-            sidebarLabel.classList.remove('hidden');
-            // update icon
-            sidebarCollapseIcon.innerHTML = '<path d="M13.72 5.22a.75.75 0 000 1.06L16.44 9l-2.72 2.72a.75.75 0 101.06 1.06L18 9.53 14.78 6.28a.75.75 0 00-1.06 0zM6.28 5.22a.75.75 0 000 1.06L9 9l-2.72 2.72A.75.75 0 015.22 12.66L2 9.53 5.22 6.28a.75.75 0 011.06 0z"/>';
-            // update global toggle icon
+            document.getElementById('sidebarLabel').classList.remove('hidden');
+            // update global toggle icon (hamburger)
             globalToggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>';
         } else {
             sidebar.classList.add('sidebar-collapsed');
             sidebar.classList.remove('sidebar-expanded');
             // hide link text
             document.querySelectorAll('.link-text').forEach(el => el.classList.add('hidden'));
-            sidebarLabel.classList.add('hidden');
-            sidebarCollapseIcon.innerHTML = '<path d="M10.5 6.5l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>';
-            // update global toggle icon (show chevron to indicate expanded collapsed)
+            document.getElementById('sidebarLabel').classList.add('hidden');
+            // update global toggle icon (chevron)
             globalToggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6l12 6-12 6"/>';
         }
     }
 
     // initialize
     applySidebarState(isExpanded());
-
-    // collapse button handler
-    sidebarCollapseBtn.addEventListener('click', function(e){
-        const expanded = isExpanded();
-        localStorage.setItem(STORAGE_KEY, expanded ? '0' : '1');
-        applySidebarState(!expanded);
-    });
 
     // global toggle (top-left) to open/close sidebar on mobile or toggle collapse on desktop
     globalToggle.addEventListener('click', function(e){
@@ -401,7 +359,6 @@ $topbarHeight = 64; // px - keep in sync with CSS if you change it
 
         // set src
         appFrame.src = target;
-        // ensure iframe container fills full height (already set via inline style)
     };
 
     // attach click handlers
