@@ -176,6 +176,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
 <body class="bg-light">
 
 <div class="container mt-5">
+    <div class="d-flex justify-content-end mb-3">
+        <a href="dashboard.php" class="btn btn-secondary">
+            ← Back to Dashboard
+        </a>
+    </div>
+
     
     <!-- Alert Messages -->
     <?php if ($message): ?>
