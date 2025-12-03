@@ -74,6 +74,10 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
                 Sold Product
             </a>
 
+            <a href="Purchase_Return.php" class="bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-transform transform hover:scale-105 duration-300">
+                Purchase Return
+            </a>
+
             <a href="Sales_Return.php" class="bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-transform transform hover:scale-105 duration-300">
                 Sales Return
             </a>
@@ -97,6 +101,10 @@ $user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0; //
             
             <a href="invoice_list.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
                 Invoice
+            </a>
+
+            <a href="Purchased_Return_List.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
+                Purchase Return List
             </a>
 
             <a href="returns.php" class="bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-transform transform hover:scale-105 duration-300">
