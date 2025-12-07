@@ -137,7 +137,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-800">Add New Client</h1>
-            <a href="dashboard.php" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">&larr; Back to Dashboard</a>
         </div>
 
         <main class="w-full max-w-2xl mx-auto">
