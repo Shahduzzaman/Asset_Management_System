@@ -397,13 +397,6 @@ if ($stmt_cart = $conn->prepare($sql_cart_view)) {
                 <span>Back to Cart</span>
             </a>
         </div>
-
-        <div>
-            <a href="dashboard.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                <i class="fas fa-arrow-left mr-2" aria-hidden="true"></i>Back to Dashboard
-            </a>
-        </div>
-
     </div>
 
     <div class="bg-white shadow-lg rounded-lg p-6 max-w-4xl mx-auto">
