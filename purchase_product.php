@@ -208,8 +208,8 @@ $conn->close();
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         <div class="flex justify-between items-center mb-6 no-print">
             <h1 class="text-3xl font-bold text-gray-800">Record Purchased Products</h1>
-            <a href="dashboard.php" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">&larr; Back to Dashboard</a>
         </div>
+        
         <?php if ($successMessage): ?><div id="alert-box" class="bg-green-100 border-green-400 text-green-700 px-4 py-3 rounded-lg mb-6"><strong>Success!</strong> <span><?php echo htmlspecialchars($successMessage); ?></span></div><?php endif; ?>
         <?php if ($errorMessage): ?><div id="alert-box" class="bg-red-100 border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6"><strong>Error!</strong> <span><?php echo htmlspecialchars($errorMessage); ?></span></div><?php endif; ?>
         
