@@ -96,24 +96,13 @@ if ($result === false) {
 <body class="bg-light">
 <div class="container mt-4">
 
-    <div class="d-flex justify-content-between align-items-start mb-3">
-        <div>
-            <h3 class="mb-0">Purchase Return List</h3>
-            <div class="small-text">All records from <code>purchase_return</code></div>
-        </div>
-
-        <div class="d-flex gap-2">
-            <a href="dashboard.php" class="btn btn-outline-secondary btn-back">← Back to Dashboard</a>
-        </div>
-    </div>
-
     <?php if ($deleteMessage): ?>
         <div class="alert alert-info"><?php echo htmlspecialchars($deleteMessage); ?></div>
     <?php endif; ?>
 
     <div class="card shadow-sm">
         <div class="card-header">
-            <strong>Returned Products</strong>
+            <strong>Purchase Return List</strong>
         </div>
         <div class="card-body">
             <div class="table-wrap">
