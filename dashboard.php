@@ -1,13 +1,16 @@
 <?php
+// dashboard.php
 session_start();
 
-// Authorization logic unchanged
+require_once "connection.php"; // expects $conn being a mysqli object
+
+// Authorization
 if (!isset($_SESSION["user_id"])) {
     header("Location: index.php");
     exit();
 }
 
-// Error message handling (same behavior as before)
+// Error message handling
 $errorMessage = '';
 if (isset($_SESSION['error_message'])) {
     $errorMessage = $_SESSION['error_message'];
@@ -15,14 +18,250 @@ if (isset($_SESSION['error_message'])) {
 }
 
 // Session values used in the layout
-$user_name = htmlspecialchars($_SESSION["user_name"]);
-$user_role = isset($_SESSION["user_role"]) ? (int)$_SESSION["user_role"] : 0;
+$user_id   = (int) ($_SESSION['user_id'] ?? 0);
+$user_name = htmlspecialchars($_SESSION["user_name"] ?? 'User');
+$user_role = isset($_SESSION['user_role']) ? (int) $_SESSION['user_role'] : 0; // 1 = Admin
 
 // Company info
 $company_name = "Protection One (Pvt.) Ltd.";
 $logo_url = "images/logo.png";
-
 $topbarHeight = 64; // px
+
+// --------------------------
+// Dashboard data preparation
+// --------------------------
+
+// 1) Ensure branch in session (if not, load from users.branch_id_fk)
+if (!isset($_SESSION['branch_id'])) {
+    $stmt = $conn->prepare("SELECT branch_id_fk FROM users WHERE user_id = ? LIMIT 1");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->bind_result($branch_from_db);
+    $stmt->fetch();
+    $stmt->close();
+    $_SESSION['branch_id'] = $branch_from_db ? (int)$branch_from_db : null;
+}
+$user_branch = isset($_SESSION['branch_id']) ? (int) $_SESSION['branch_id'] : null;
+
+// 2) Branch name (for display) — admins see "All Branches"
+$branch_name = "All Branches";
+if ($user_role !== 1 && $user_branch > 0) {
+    $stmt = $conn->prepare("SELECT Name FROM branch WHERE branch_id = ? LIMIT 1");
+    $stmt->bind_param("i", $user_branch);
+    $stmt->execute();
+    $stmt->bind_result($bn);
+    if ($stmt->fetch()) $branch_name = $bn;
+    $stmt->close();
+}
+
+$applyBranchFilter = ($user_role !== 1 && $user_branch > 0);
+
+// 3) Total Sales (count of sold_product rows, non-admins filtered by creator's branch)
+if ($applyBranchFilter) {
+    $sql = "
+        SELECT COUNT(sp.sold_product_id) AS cnt
+        FROM sold_product sp
+        LEFT JOIN users u ON sp.created_by = u.user_id
+        WHERE sp.is_deleted = 0 AND u.branch_id_fk = ?
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $user_branch);
+} else {
+    $sql = "SELECT COUNT(sold_product_id) AS cnt FROM sold_product WHERE is_deleted = 0";
+    $stmt = $conn->prepare($sql);
+}
+$stmt->execute();
+$stmt->bind_result($total_sales);
+$stmt->fetch();
+$stmt->close();
+$total_sales = (int) ($total_sales ?: 0);
+
+// 4) Total Returns (sales_return + purchase_return), scoped similarly
+// sales_return
+if ($applyBranchFilter) {
+    $sql = "
+        SELECT COUNT(sr.sales_return_id) AS cnt
+        FROM sales_return sr
+        LEFT JOIN users u ON sr.created_by = u.user_id
+        WHERE sr.is_deleted = 0 AND u.branch_id_fk = ?
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $user_branch);
+} else {
+    $sql = "SELECT COUNT(sales_return_id) AS cnt FROM sales_return WHERE is_deleted = 0";
+    $stmt = $conn->prepare($sql);
+}
+$stmt->execute();
+$stmt->bind_result($sales_return_count);
+$stmt->fetch();
+$stmt->close();
+$sales_return_count = (int) ($sales_return_count ?: 0);
+
+// purchase_return (created_by exists)
+if ($applyBranchFilter) {
+    $sql = "
+        SELECT COUNT(pr.purchase_return_id) AS cnt
+        FROM purchase_return pr
+        LEFT JOIN users u ON pr.created_by = u.user_id
+        WHERE u.branch_id_fk = ?
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $user_branch);
+} else {
+    $sql = "SELECT COUNT(purchase_return_id) AS cnt FROM purchase_return";
+    $stmt = $conn->prepare($sql);
+}
+$stmt->execute();
+$stmt->bind_result($purchase_return_count);
+$stmt->fetch();
+$stmt->close();
+$purchase_return_count = (int) ($purchase_return_count ?: 0);
+
+$total_returns = $sales_return_count + $purchase_return_count;
+
+// 5) Total Stock
+// 5a) Serialized in-stock (product_sl.status = 0) resolved current branch via latest branch_to_branch or the purchase branch (purchased_products.branch_id_fk)
+if ($applyBranchFilter) {
+    // count serialized items whose resolved branch = user's branch
+    $sql = "
+        SELECT COUNT(*) AS cnt
+        FROM product_sl ps
+        LEFT JOIN purchased_products pp ON ps.purchase_id_fk = pp.purchase_id
+        WHERE ps.status = 0
+          AND (
+             COALESCE(
+               (SELECT bt.To_Branch_ID_FK
+                FROM branch_to_branch bt
+                WHERE bt.Product_ID_FK = ps.sl_id
+                  AND bt.is_deleted = 0
+                ORDER BY bt.branch_to_branch_id DESC
+                LIMIT 1),
+               pp.branch_id_fk
+             ) = ?
+          )
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $user_branch);
+} else {
+    $sql = "SELECT COUNT(*) AS cnt FROM product_sl WHERE status = 0";
+    $stmt = $conn->prepare($sql);
+}
+$stmt->execute();
+$stmt->bind_result($serialized_in_stock);
+$stmt->fetch();
+$stmt->close();
+$serialized_in_stock = (int) ($serialized_in_stock ?: 0);
+
+// 5b) Non-serialized available = sum(purchased_products.quantity WHERE branch) - sum(sold_product.Quantity WHERE sold by branch users)
+// Purchased sum (branch-scoped)
+if ($applyBranchFilter) {
+    $sql = "
+        SELECT IFNULL(SUM(pp.quantity),0) AS purchased_qty
+        FROM purchased_products pp
+        WHERE pp.is_deleted = 0 AND pp.branch_id_fk = ?
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $user_branch);
+} else {
+    $sql = "SELECT IFNULL(SUM(quantity),0) AS purchased_qty FROM purchased_products WHERE is_deleted = 0";
+    $stmt = $conn->prepare($sql);
+}
+$stmt->execute();
+$stmt->bind_result($non_serial_purchased);
+$stmt->fetch();
+$stmt->close();
+$non_serial_purchased = (int) ($non_serial_purchased ?: 0);
+
+// Sold sum (sold by users of that branch)
+if ($applyBranchFilter) {
+    $sql = "
+        SELECT IFNULL(SUM(sp.Quantity),0) AS sold_qty
+        FROM sold_product sp
+        LEFT JOIN users u ON sp.created_by = u.user_id
+        WHERE sp.is_deleted = 0 AND u.branch_id_fk = ?
+    ";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $user_branch);
+} else {
+    $sql = "SELECT IFNULL(SUM(Quantity),0) AS sold_qty FROM sold_product WHERE is_deleted = 0";
+    $stmt = $conn->prepare($sql);
+}
+$stmt->execute();
+$stmt->bind_result($non_serial_sold);
+$stmt->fetch();
+$stmt->close();
+$non_serial_sold = (int) ($non_serial_sold ?: 0);
+
+$non_serial_available = $non_serial_purchased - $non_serial_sold;
+if ($non_serial_available < 0) $non_serial_available = 0;
+
+$total_stock_items = $serialized_in_stock + $non_serial_available;
+
+// 6) Category-wise totals (simple totals only: serialized_in_branch + non-serialized available for that category)
+$categoryStocks = [];
+$catSql = "SELECT category_id, category_name FROM categories WHERE is_deleted = 0 ORDER BY category_name";
+if ($res = $conn->query($catSql)) {
+    while ($cat = $res->fetch_assoc()) {
+        $cid = (int)$cat['category_id'];
+
+        // serialized count for this category (status=0, resolved branch)
+        if ($applyBranchFilter) {
+            $serializedCatSql = "
+                SELECT COUNT(*) AS cnt
+                FROM product_sl ps
+                LEFT JOIN purchased_products pp ON ps.purchase_id_fk = pp.purchase_id
+                LEFT JOIN models m ON ps.model_id_fk = m.model_id
+                WHERE m.category_id = {$cid} AND ps.status = 0
+                  AND (
+                    COALESCE(
+                      (SELECT bt.To_Branch_ID_FK FROM branch_to_branch bt WHERE bt.Product_ID_FK = ps.sl_id AND bt.is_deleted = 0 ORDER BY bt.branch_to_branch_id DESC LIMIT 1),
+                      pp.branch_id_fk
+                    ) = {$user_branch}
+                  )
+            ";
+        } else {
+            $serializedCatSql = "
+                SELECT COUNT(*) AS cnt
+                FROM product_sl ps
+                LEFT JOIN models m ON ps.model_id_fk = m.model_id
+                WHERE m.category_id = {$cid} AND ps.status = 0
+            ";
+        }
+        $s_cnt = (int) $conn->query($serializedCatSql)->fetch_column();
+
+        // non-serialized purchased for this category (in the branch if filtered)
+        $nonSerialPurchasedCatSql = "
+            SELECT IFNULL(SUM(pp.quantity),0) AS purchased_qty
+            FROM purchased_products pp
+            LEFT JOIN models m ON pp.model_id = m.model_id
+            WHERE pp.is_deleted = 0 AND m.category_id = {$cid}
+        ";
+        if ($applyBranchFilter) $nonSerialPurchasedCatSql .= " AND pp.branch_id_fk = {$user_branch}";
+        $p_qty = (int) $conn->query($nonSerialPurchasedCatSql)->fetch_column();
+
+        // non-serialized sold for this category by users of this branch
+        $nonSerialSoldCatSql = "
+            SELECT IFNULL(SUM(sp.Quantity),0) AS sold_qty
+            FROM sold_product sp
+            LEFT JOIN models m ON sp.model_id_fk = m.model_id
+            LEFT JOIN users u ON sp.created_by = u.user_id
+            WHERE sp.is_deleted = 0 AND m.category_id = {$cid}
+        ";
+        if ($applyBranchFilter) $nonSerialSoldCatSql .= " AND u.branch_id_fk = {$user_branch}";
+        $s_qty = (int) $conn->query($nonSerialSoldCatSql)->fetch_column();
+
+        $non_serial_cat_available = $p_qty - $s_qty;
+        if ($non_serial_cat_available < 0) $non_serial_cat_available = 0;
+
+        $total_cat = $s_cnt + $non_serial_cat_available;
+
+        $categoryStocks[] = [
+            'category_id' => $cid,
+            'category_name' => $cat['category_name'],
+            'count' => $total_cat
+        ];
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -64,7 +303,6 @@ $topbarHeight = 64; // px
       </button>
 
       <a href="dashboard.php" class="flex items-center gap-3">
-        <!-- border removed and kept rounded for nicer look -->
         <img src="<?php echo $logo_url; ?>" alt="Logo" class="w-10 h-10 object-contain rounded-sm" onerror="this.style.display='none'">
         <div>
           <div class="text-lg font-semibold text-gray-800"><?php echo htmlspecialchars($company_name); ?></div>
@@ -110,6 +348,10 @@ $topbarHeight = 64; // px
 
     <nav id="sidebarNav" class="space-y-1">
       <!-- text-only links with reduced font size -->
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="stock_monitor.php">
+          <span class="link-text text-xs">Stock Monitor</span>
+      </a>
+      
       <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="product_setup.php">
           <span class="link-text text-xs">Product Setup</span>
       </a>
@@ -194,6 +436,7 @@ $topbarHeight = 64; // px
     </nav>
   </aside>
 
+
   <!-- Main Content -->
   <main id="mainContent" style="flex:1; min-width:0; overflow:auto;">
       <?php if (!empty($errorMessage)): ?>
@@ -202,28 +445,69 @@ $topbarHeight = 64; // px
           </div>
       <?php endif; ?>
 
-      <div id="welcomeCard" class="m-4 bg-white rounded-lg shadow p-8 h-[calc(100vh - var(--topbar-h) - 32px)] flex flex-col justify-center items-center">
-          <h2 class="text-2xl font-semibold text-gray-800 mb-2">Welcome back, <?php echo $user_name; ?> 👋</h2>
-          <p class="text-gray-600 mb-6">Click any item in the left navigation to open that page without reloading the dashboard layout.</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
-              <button onclick="loadIntoFrame(null,'Purchased_Return_List.php')" class="w-full bg-teal-50 p-4 rounded-lg border hover:shadow text-left">
-                  <div class="text-lg font-semibold text-teal-700">Purchase Return List</div>
-                  <div class="text-sm text-gray-500 mt-1">View all returned products</div>
-              </button>
-              <button onclick="loadIntoFrame(null,'purchase_product.php')" class="w-full bg-green-50 p-4 rounded-lg border hover:shadow text-left">
-                  <div class="text-lg font-semibold text-green-700">Purchased Products</div>
-                  <div class="text-sm text-gray-500 mt-1">Add or view purchases</div>
-              </button>
-          </div>
+      <!-- Updated Welcome Card (overview) -->
+      <div id="welcomeCard" class="m-4 bg-white rounded-lg shadow p-8 h-[calc(100vh - var(--topbar-h) - 32px)] overflow-auto">
+
+        <h2 class="text-2xl font-bold text-gray-800 mb-1">
+            Welcome back, <?php echo $user_name; ?> 👋
+        </h2>
+        <p class="text-gray-600 mb-6">
+            Branch:
+            <b><?php echo ($user_role == 1) ? "All Branches (Admin)" : htmlspecialchars($branch_name); ?></b>
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+
+            <div class="bg-indigo-50 p-6 rounded-xl shadow-inner">
+                <h3 class="text-lg font-semibold text-indigo-700">Total Sales</h3>
+                <p class="text-3xl font-bold mt-2"><?php echo number_format($total_sales); ?></p>
+                <p class="text-xs text-gray-600 mt-1">Sales recorded in <?php echo $applyBranchFilter ? 'your branch' : 'all branches'; ?></p>
+            </div>
+
+            <div class="bg-red-50 p-6 rounded-xl shadow-inner">
+                <h3 class="text-lg font-semibold text-red-700">Total Returns</h3>
+                <p class="text-3xl font-bold mt-2"><?php echo number_format($total_returns); ?></p>
+                <p class="text-xs text-gray-600 mt-1">Sales + Purchase returns</p>
+            </div>
+
+            <div class="bg-green-50 p-6 rounded-xl shadow-inner">
+                <h3 class="text-lg font-semibold text-green-700">Total Stock</h3>
+                <p class="text-3xl font-bold mt-2"><?php echo number_format($total_stock_items); ?></p>
+                <p class="text-xs text-gray-600 mt-1">Serialized + Non-Serialized</p>
+            </div>
+
+        </div>
+
+        <h3 class="text-xl font-bold text-gray-700 mb-3">Stock by Category</h3>
+
+        <?php if (empty($categoryStocks)): ?>
+            <p class="text-gray-500">No category data available.</p>
+        <?php else: ?>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <?php foreach ($categoryStocks as $c): ?>
+                    <div class="border rounded-lg p-4 bg-gray-50 hover:shadow transition">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-sm font-medium text-gray-700"><?php echo htmlspecialchars($c['category_name']); ?></div>
+                                <div class="text-xs text-gray-500">Items in stock</div>
+                            </div>
+                            <div class="text-2xl font-bold text-indigo-600"><?php echo number_format($c['count']); ?></div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
       </div>
 
+      <!-- iframe loader -->
       <div id="frameWrap" class="hidden" style="height: calc(100vh - var(--topbar-h));">
           <iframe id="appFrame" name="appFrame" src="about:blank" title="Application Frame" frameborder="0"></iframe>
       </div>
   </main>
 </div>
 
-<!-- Mobile slide-over sidebar -->
+<!-- Mobile slide-over sidebar (unchanged) -->
 <div id="mobileSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r p-4 transform -translate-x-full transition-transform md:hidden overflow-auto">
   <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
@@ -246,7 +530,7 @@ $topbarHeight = 64; // px
   </nav>
 </div>
 
-<!-- JS -->
+<!-- JS (unchanged logic) -->
 <script>
 (function(){
     const sidebar = document.getElementById('sidebar');
