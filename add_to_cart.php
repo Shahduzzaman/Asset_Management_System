@@ -75,12 +75,6 @@ $page_title = "Add Products to Cart";
 </head>
 <body class="bg-gray-100 font-sans leading-normal tracking-normal">
 
-    <!-- Top -->
-    <div class="bg-white shadow p-4 flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-800"><?php echo htmlspecialchars($page_title); ?></h1>
-        <a href="dashboard.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"><i class="fas fa-arrow-left mr-2"></i>Back to Dashboard</a>
-    </div>
-
     <div class="p-6 md:p-10 max-w-5xl mx-auto">
         <!-- Add to Cart Card -->
         <div class="bg-white rounded-lg shadow p-6 mb-8">
