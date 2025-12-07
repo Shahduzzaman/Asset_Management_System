@@ -84,9 +84,6 @@ function statusText($code) {
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 fw-bold text-dark">Sales Return List</h1>
-        <a href="dashboard.php" class="btn btn-primary fw-semibold px-4 py-2 rounded-3">
-            &larr; Back to Dashboard
-        </a>
     </div>
     <table class="table table-striped table-bordered align-middle">
         <thead class="table-primary">
