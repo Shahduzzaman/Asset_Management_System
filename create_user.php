@@ -168,9 +168,6 @@ $conn->close(); // Connection is now closed after all data is fetched
                 <div class="pt-2">
                     <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700">Create User</button>
                 </div>
-                 <div class="text-center">
-                     <a href="dashboard.php" class="text-sm font-medium text-indigo-600 hover:text-indigo-500 hover:underline">Back to Dashboard</a>
-                 </div>
             </form>
         </div>
     </main>
