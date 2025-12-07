@@ -232,7 +232,6 @@ if ($res = $conn->query($modelSql)) {
     <!-- Top Bar -->
     <div class="bg-white shadow p-4 flex items-center justify-between mb-6 sticky top-0 z-10">
         <h1 class="text-2xl font-bold text-gray-800">Stock Monitor</h1>
-        <div class="text-sm text-gray-500">Logged in as: <?= htmlspecialchars($_SESSION['user_name'] ?? 'User') ?></div>
     </div>
 
     <div class="container mx-auto px-4 pb-8">
