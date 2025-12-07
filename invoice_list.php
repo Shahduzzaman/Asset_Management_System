@@ -68,11 +68,6 @@ $result = $conn->query($sql);
     <!-- Top Bar -->
     <div class="bg-white shadow p-4 flex items-center justify-between mb-6 sticky top-0 z-10">
         <h1 class="text-2xl font-bold text-gray-800">Invoice History</h1>
-        <div>
-            <a href="dashboard.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                <i class="fas fa-arrow-left mr-2"></i>Dashboard
-            </a>
-        </div>
     </div>
 
     <div class="container mx-auto px-4 pb-8">
