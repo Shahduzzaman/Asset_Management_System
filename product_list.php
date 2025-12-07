@@ -143,8 +143,8 @@ $conn->close();
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-800">Product Inventory</h1>
-            <a href="dashboard.php" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">&larr; Back to Dashboard</a>
         </div>
+        
         <div class="mb-6"><input type="text" id="search-box" placeholder="Search products..." class="w-full p-3 border-gray-300 rounded-lg"></div>
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
             <div class="overflow-x-auto">
