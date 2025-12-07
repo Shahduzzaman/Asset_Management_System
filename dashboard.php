@@ -178,14 +178,6 @@ $topbarHeight = 64; // px
           <span class="link-text text-xs">Sales Return List</span>
       </a>
 
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700" data-target="my_profile.php">
-          <span class="link-text text-xs">My Profile</span>
-      </a>
-
-      <a href="logout.php" class="block px-3 py-2 rounded-md hover:bg-red-50 text-gray-700">
-          <span class="link-text text-xs">Logout</span>
-      </a>
-
       <?php if ($user_role === 1): ?>
           <hr class="my-2">
           <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="create_user.php">
@@ -195,6 +187,10 @@ $topbarHeight = 64; // px
               <span class="link-text text-xs">Manage Users</span>
           </a>
       <?php endif; ?>
+
+      <a href="logout.php" class="block px-3 py-2 rounded-md hover:bg-red-50 text-gray-700">
+          <span class="link-text text-xs">Logout</span>
+      </a>
     </nav>
   </aside>
 
