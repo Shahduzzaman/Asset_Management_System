@@ -272,9 +272,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_return'])) {
 <div class="container py-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 fw-bold text-dark">Sales Return</h1>
-        <a href="dashboard.php" class="btn btn-primary fw-semibold px-4 py-2 rounded-3">
-            &larr; Back to Dashboard
-        </a>
     </div>
 
 
