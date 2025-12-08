@@ -95,7 +95,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
      $end_date_default = date('Y-m-d');
      $start_date_default = date('Y-m-d', strtotime('-1 month'));
 }
-
 ?>
 
 <!DOCTYPE html>
@@ -108,135 +107,177 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
     <style>
         body { font-family: 'Inter', sans-serif; }
 
-        /* Print specific styles */
+        /* ---------------------------
+           SCREEN ONLY (Hide in Print)
+           --------------------------- */
+        @media screen {
+            .print-only { display: none !important; }
+        }
+
+        /* ---------------------------
+           PRINT ONLY STYLES
+           --------------------------- */
         @media print {
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            body * { visibility: hidden; }
-
-            #print-section, #print-section * { visibility: visible; }
-
-            #print-section {
-                position: absolute;
-                left: 0; top: 0;
-                width: 100%;
-                height: auto;
-                margin: 0;
-                padding: 8mm;
-                font-size: 8pt; /* slightly smaller base font */
+            /* 1. Reset Page & Margins */
+            @page {
+                size: A4;
+                margin: 5mm 5mm 5mm 5mm; /* Very minimal margins */
             }
 
-            /* Header */
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: #fff !important;
+                font-family: 'Helvetica', 'Arial', sans-serif; /* Clean font for print */
+                font-size: 6pt; /* Compact font size */
+                color: #000;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            /* 2. Hide Screen Elements */
+            .no-print, .no-print * {
+                display: none !important;
+                height: 0;
+                width: 0;
+            }
+
+            /* 3. Main Container Reset */
+            .container, .max-w-7xl, .mx-auto, .p-4, .p-6, .p-8 {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+            }
+
+            /* 4. Show Print Section */
+            #print-section {
+                display: block !important;
+                width: 100%;
+                visibility: visible;
+                position: relative;
+            }
+            
+            #print-section * {
+                visibility: visible;
+            }
+
+            /* 5. Header Section - ADDED !important */
             #print-header {
                 display: flex !important;
                 align-items: center;
-                justify-content: center;
-                margin-bottom: 20px;
+                border-bottom: 2px solid #000;
+                padding-bottom: 5px;
+                margin-bottom: 10px;
             }
             #print-logo {
-                height: 55px;
+                height: 50px; /* Adjusted size */
                 width: auto;
-                margin-right: 1px;
-            }
-            #print-company-info { text-align: left; }
-            #print-company-name { font-size: 20px; font-weight: bold; line-height: 1.1; }
-            #print-tagline { font-size: 13px; line-height: 1.1; }
-
-            .no-print { display: none !important; }
-
-            /* --- SLIM TABLE STYLE --- */
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 10px;
-                font-size: 7.5pt;      /* slightly smaller font */
-                line-height: 1.0;      /* tightest line height */
-            }
-            th, td {
-                border: 1px solid #ccc;
-                padding: 0.5px 2px;    /* ultra-slim padding */
-                text-align: left;
-                vertical-align: middle;
-                word-wrap: break-word;
-            }
-            th {
-                background-color: #eee !important;
-                font-weight: bold;
-            }
-            tbody tr:nth-child(even) {
-                background-color: #f9f9f9 !important;
-            }
-
-            .text-right { text-align: right; }
-            .text-red-600 { color: #DC2626 !important; }
-            .text-green-600 { color: #16A34A !important; }
-            .bg-gray-50 { background-color: #F9FAFB !important; }
-
-            /* Summary Section */
-            .summary-section {
-                margin-top: 20px;
-                padding: 10px;
-                border: 1px solid #ccc;
-                border-top: 2px solid #333;
-                background-color: #f9f9f9 !important;
-                border-radius: 4px;
-                font-size: 8pt;
-                page-break-inside: avoid;
-            }
-            .summary-section h3 {
-                font-size: 10pt;
-                margin-bottom: 6px;
-            }
-            .summary-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 10px;
-            }
-            .summary-section p { margin: 0; }
-
-            /* Footer */
-            #print-footer {
+                margin-right: 15px;
                 display: block !important;
-                position: fixed;
-                bottom: 8mm;
-                left: 8mm;
-                right: 8mm;
-                width: calc(100% - 16mm);
-                font-size: 7pt;
-                border-top: 1px solid #ccc;
-                padding-top: 4px;
-                text-align: left;
             }
-            #print-footer-left { float: left; }
-            #print-footer-right { float: right; }
+            .header-info h1 { font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase; }
+            .header-info p { font-size: 9pt; margin: 0; }
 
-            /* Page setup */
-            @page {
-                size: A4;
-                margin: 12mm;
-                @top-left { content: ""; }
-                @top-center { content: ""; }
-                @top-right { content: ""; }
-                @bottom-left { content: ""; }
-                @bottom-center { content: ""; }
-                @bottom-right { content: ""; }
+            /* 6. Vendor Info Block - ADDED !important */
+            .vendor-info-box {
+                border: 1px solid #000;
+                padding: 5px;
+                margin-bottom: 10px;
+                font-size: 9pt;
+                display: flex !important; /* Forces display even if 'hidden' class is present */
+                justify-content: space-between;
+            }
+            .vendor-info-col { width: 48%; }
+
+            /* 7. TABLE STYLING - THE CORE FIX */
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                font-size: 7pt; /* Small readable font */
+                table-layout: fixed; /* Fix column widths */
+            }
+
+            th, td {
+                border: 1px solid #000 !important; /* Sharp black borders */
+                padding: 3px 4px !important; /* COMPACT PADDING - No extra gap */
+                line-height: 1.1 !important; /* Tighter line height */
+                vertical-align: top;
+                color: #000 !important; /* Force black text */
+            }
+
+            th {
+                background-color: #f0f0f0 !important; /* Light gray header background */
+                font-weight: bold;
+                text-transform: uppercase;
+                text-align: center;
+                font-size: 7pt;
+            }
+
+            /* Specific Column Alignment */
+            .col-date { width: 10%; text-align: center; white-space: nowrap; }
+            .col-desc { width: 42%; text-align: left; }
+            .col-inv  { width: 12%; text-align: center; white-space: nowrap; }
+            .col-amt  { width: 12%; text-align: right; font-family: 'Courier New', monospace; }
+
+            /* 8. Summary Box - ADDED !important */
+            .summary-box {
+                margin-top: 10px;
+                border: 1px solid #000;
+                padding: 5px;
+                page-break-inside: avoid;
+                display: block !important; /* CRITICAL: Forces this block to show in print */
+            }
+            .summary-row {
+                display: flex;
+                justify-content: space-between;
+                font-weight: bold;
+                font-size: 10pt;
+                margin-bottom: 2px;
+            }
+
+            /* 9. Footer - ADDED !important */
+            #print-footer {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                border-top: 1px solid #000;
+                font-size: 7pt;
+                padding-top: 2px;
+                display: flex !important; /* Forces display */
+                justify-content: space-between;
+            }
+            
+            /* Hide Screen-Only Classes in Print */
+            .shadow-md, .bg-white, .rounded-xl, .bg-gray-50, .bg-gray-100 {
+                background: none !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+            }
+            .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900 {
+                color: #000 !important;
+            }
+            .text-green-600, .text-red-600, .text-red-700 {
+                color: #000 !important; /* Remove colors for pure B&W print, or keep if color printer available */
             }
         }
-
-        /* Hide header/footer by default */
-        #print-footer, #print-header { display: none; }
     </style>
-
-
-
 </head>
 <body class="bg-gray-100 min-h-screen">
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- Screen Header -->
         <div class="flex justify-between items-center mb-6 no-print">
             <h1 class="text-3xl font-bold text-gray-800">Vendor Ledger</h1>
         </div>
 
-        <!-- Filter Form -->
+        <!-- Filter Form (Screen Only) -->
         <div class="bg-white p-6 rounded-xl shadow-md mb-8 no-print">
             <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">Generate Ledger Report</h2>
              <?php if ($errorMessage): ?><div id="alert-box" class="bg-red-100 border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"><span><?php echo $errorMessage; ?></span></div><?php endif; ?>
@@ -266,57 +307,74 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             </form>
         </div>
 
-        <!-- Ledger Display Section -->
+        <!-- LEDGER RESULT -->
         <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger']) && empty($errorMessage)): ?>
+        
+        <!-- WRAPPER: Handles both Screen and Print visibility logic internally -->
         <div id="print-section">
-            <!-- Print Header -->
-            <div id="print-header">
-                <img id="print-logo" src="images/logo.png" alt="Company Logo">
-                <div id="print-company-info">
-                    <div id="print-company-name">Protection One</div>
-                    <div id="print-tagline">A Complete Security Solutions</div>
+            
+            <!-- 1. HEADER (Print Optimized) -->
+            <div id="print-header" class="hidden print-only"> <!-- Hidden on screen via Tailwind 'hidden', shown in print via CSS -->
+                <img id="print-logo" src="images/logo.png" alt="Logo" style="display:block;">
+                <div class="header-info">
+                    <h1>Protection One</h1>
+                    <p>A Complete Security Solutions</p>
                 </div>
             </div>
 
-            <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                 <div class="p-6 border-b flex justify-between">
-                    <div>
-                         <h2 class="text-2xl font-bold text-gray-800 mb-1">Ledger for: <?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?></h2>
-                         <p class="text-sm text-gray-600 mb-3">Period: <?php echo htmlspecialchars($start_date_display); ?> to <?php echo htmlspecialchars($end_date_display); ?></p>
-                         <?php if ($selected_vendor_details): ?>
-                         <div class="text-xs text-gray-500 mt-2 leading-relaxed">
-                             <?php if($selected_vendor_details['contact_person']) echo '<span class="font-bold">' . htmlspecialchars($selected_vendor_details['contact_person']) . '</span><br>'; ?>
-                             <?php if($selected_vendor_details['email']) echo 'Email: ' . htmlspecialchars($selected_vendor_details['email']) . '<br>'; ?>
-                             <?php if($selected_vendor_details['phone']) echo 'Phone: ' . htmlspecialchars($selected_vendor_details['phone']) . '<br>'; ?>
-                             <?php if($selected_vendor_details['address']) echo 'Address: ' . nl2br(htmlspecialchars($selected_vendor_details['address'])); ?>
-                         </div>
-                         <?php endif; ?>
-                    </div>
+            <!-- 2. VENDOR DETAILS & DATE (Print Optimized Structure) -->
+            <!-- Screen View Version -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden mb-4 no-print">
+                 <div class="p-6 border-b">
+                     <h2 class="text-2xl font-bold text-gray-800 mb-1"><?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?></h2>
+                     <p class="text-sm text-gray-600">Period: <?php echo htmlspecialchars($start_date_display); ?> to <?php echo htmlspecialchars($end_date_display); ?></p>
                  </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full">
-                        <thead class="bg-gray-50 border-b">
+            </div>
+
+            <!-- Print View Version -->
+            <div class="vendor-info-box hidden print-only"> <!-- Only visible in print -->
+                <div class="vendor-info-col">
+                    <strong>Vendor:</strong> <?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?><br>
+                    <strong>Contact:</strong> <?php echo htmlspecialchars($selected_vendor_details['contact_person'] ?? ''); ?><br>
+                    <strong>Phone:</strong> <?php echo htmlspecialchars($selected_vendor_details['phone'] ?? ''); ?>
+                </div>
+                <div class="vendor-info-col" style="text-align: right;">
+                    <strong>Period:</strong> <?php echo htmlspecialchars($start_date_display); ?> to <?php echo htmlspecialchars($end_date_display); ?><br>
+                    <strong>Email:</strong> <?php echo htmlspecialchars($selected_vendor_details['email'] ?? ''); ?><br>
+                    <strong>Address:</strong> <?php echo htmlspecialchars($selected_vendor_details['address'] ?? ''); ?>
+                </div>
+            </div>
+
+            <!-- 3. DATA TABLE -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden print:shadow-none print:rounded-none">
+                <div class="overflow-x-auto print:overflow-visible">
+                    <table class="min-w-full print:w-full">
+                        <thead class="bg-gray-50 border-b print:bg-gray-200">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit (Payment)</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit (Purchase)</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase col-date">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase col-desc">Description</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase col-inv">Invoice #</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase col-amt">Debit<br><span style="font-size:0.8em; font-weight:normal;">(Payment)</span></th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase col-amt">Credit<br><span style="font-size:0.8em; font-weight:normal;">(Purchase)</span></th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase col-amt">Balance</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200">
+                        <tbody class="divide-y divide-gray-200 print:divide-y-0">
                             <?php if (empty($transactions)): ?>
                                 <tr><td colspan="6" class="text-center py-10 text-gray-500">No transactions found for this period.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($transactions as $txn): ?>
                                 <tr>
-                                    <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap"><?php echo htmlspecialchars($txn['transaction_date']); ?></td>
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900"><?php echo htmlspecialchars($txn['description']); ?></td>
-                                    <td class="px-6 py-4 text-sm text-gray-600"><?php echo htmlspecialchars($txn['invoice_number'] ?? ''); ?></td>
-                                    <td class="px-6 py-4 text-sm text-right text-green-600"><?php echo $txn['debit'] > 0 ? number_format($txn['debit'], 2) : ''; ?></td>
-                                    <td class="px-6 py-4 text-sm text-right text-red-600"><?php echo $txn['credit'] > 0 ? number_format($txn['credit'], 2) : ''; ?></td>
-                                    <td class="px-6 py-4 text-sm text-right font-semibold <?php echo $txn['balance'] < 0 ? 'text-red-700' : 'text-gray-800'; ?>">
+                                    <td class="px-6 py-4 text-sm text-gray-600 col-date"><?php echo htmlspecialchars($txn['transaction_date']); ?></td>
+                                    <td class="px-6 py-4 text-sm font-medium text-gray-900 col-desc"><?php echo htmlspecialchars($txn['description']); ?></td>
+                                    <td class="px-6 py-4 text-sm text-gray-600 col-inv"><?php echo htmlspecialchars($txn['invoice_number'] ?? ''); ?></td>
+                                    <td class="px-6 py-4 text-sm text-right text-green-600 col-amt">
+                                        <?php echo $txn['debit'] > 0 ? number_format($txn['debit'], 2) : '-'; ?>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-right text-red-600 col-amt">
+                                        <?php echo $txn['credit'] > 0 ? number_format($txn['credit'], 2) : '-'; ?>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-right font-semibold <?php echo $txn['balance'] < 0 ? 'text-red-700' : 'text-gray-800'; ?> col-amt">
                                         <?php echo number_format(abs($txn['balance']), 2) . ' ' . $txn['balance_indicator']; ?>
                                     </td>
                                 </tr>
@@ -325,41 +383,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                         </tbody>
                     </table>
                 </div>
-                 <!-- Summary Section -->
-                 <div class="summary-section p-6 bg-gray-50 border-t">
-                    <h3 class="text-lg font-semibold mb-3 text-gray-700">Ledger Summary</h3>
-                     <div class="summary-grid grid grid-cols-1 md:grid-cols-3 gap-4 text-sm font-medium text-gray-700">
-                         <p>Total Payments (Debit): <span class="font-bold text-green-600"><?php echo number_format($total_debit, 2); ?></span></p>
-                         <p>Total Purchases (Credit): <span class="font-bold text-red-600"><?php echo number_format($total_credit, 2); ?></span></p>
-                         <p>Final Balance:
-                            <span class="font-bold <?php echo $final_balance < 0 ? 'text-red-700' : 'text-gray-800'; ?>">
-                                <?php echo number_format(abs($final_balance), 2); ?>
-                                <?php
-                                    // Description without (D)/(C) in summary
-                                    if ($final_balance < 0) echo " (Due to Vendor)";
-                                    elseif ($final_balance > 0) echo " (Advance Paid / Credit)";
-                                    else echo " (Settled)";
-                                ?>
-                            </span>
-                         </p>
-                     </div>
+            </div>
+
+            <!-- 4. SUMMARY SECTION -->
+            <div class="summary-section p-6 bg-gray-50 border-t print:bg-white print:border-none print:p-0 no-print">
+                 <!-- Screen View Summary -->
+                 <h3 class="text-lg font-semibold mb-3 text-gray-700">Ledger Summary</h3>
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm font-medium text-gray-700">
+                     <p>Total Payments: <span class="font-bold text-green-600"><?php echo number_format($total_debit, 2); ?></span></p>
+                     <p>Total Purchases: <span class="font-bold text-red-600"><?php echo number_format($total_credit, 2); ?></span></p>
+                     <p>Final Balance: <span class="font-bold <?php echo $final_balance < 0 ? 'text-red-700' : 'text-gray-800'; ?>"><?php echo number_format(abs($final_balance), 2) . ($final_balance < 0 ? " (Due)" : " (Adv)"); ?></span></p>
                  </div>
             </div>
 
-            <!-- Print Footer -->
-            <div id="print-footer">
-                 <div id="print-footer-left">
-                     Printed by: <?php echo htmlspecialchars($current_user_name); ?> on <span id="print-datetime"></span>
-                 </div>
-                 <div id="print-footer-right">
-                     Page <span class="pageNumber"></span>
-                 </div>
-             </div>
-             <!-- Print button moved here, outside the main content block but inside print-section -->
-             <div class="mt-6 text-right no-print">
-                 <button onclick="window.print()" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition text-sm">Print Ledger</button>
+            <!-- Print View Summary (More Compact) -->
+            <div class="summary-box hidden print-only">
+                <div class="summary-row">
+                    <span>Total Payments (Debit):</span>
+                    <span><?php echo number_format($total_debit, 2); ?></span>
+                </div>
+                <div class="summary-row">
+                    <span>Total Purchases (Credit):</span>
+                    <span><?php echo number_format($total_credit, 2); ?></span>
+                </div>
+                <div class="summary-row" style="border-top: 1px dashed #000; padding-top: 2px; margin-top: 2px;">
+                    <span>Final Balance:</span>
+                    <span>
+                        <?php echo number_format(abs($final_balance), 2); ?>
+                        <?php 
+                            if ($final_balance < 0) echo " (Due to Vendor)";
+                            elseif ($final_balance > 0) echo " (Advance Paid)";
+                            else echo " (Settled)";
+                        ?>
+                    </span>
+                </div>
             </div>
-        </div>
+
+            <!-- 5. FOOTER (Print Only) -->
+            <div id="print-footer" class="hidden print-only">
+                 <div>Printed by: <?php echo htmlspecialchars($current_user_name); ?></div>
+                 <div><span id="print-datetime-footer"></span></div>
+            </div>
+
+            <!-- Print Button (Screen Only) -->
+            <div class="mt-6 text-right no-print">
+                <button onclick="window.print()" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition text-sm">Print Ledger</button>
+            </div>
+
+        </div> <!-- End print-section -->
         <?php endif; ?>
 
     </div>
@@ -376,29 +447,11 @@ document.addEventListener('DOMContentLoaded', () => {
      <?php endif; ?>
 
      const now = new Date();
-     const printDateTimeEl = document.getElementById('print-datetime');
-     if (printDateTimeEl) {
-         printDateTimeEl.textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-     }
-
-     // Simple CSS counter for current page number in print footer
-     const style = document.createElement('style');
-     style.innerHTML = `
-        @media print {
-            body { counter-reset: pageNumber; }
-            #print-footer-right .pageNumber::before { content: counter(pageNumber); }
-             thead { display: table-header-group; } /* Repeat header on each page */
-             /* Add page break instructions */
-             table { page-break-inside: auto; }
-             tr    { page-break-inside: avoid; page-break-after: auto; }
-             /* Increment page counter correctly for elements within print section */
-             #print-section { counter-increment: pageNumber; }
-        }
-     `;
-     document.head.appendChild(style);
+     const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+     const footerTime = document.getElementById('print-datetime-footer');
+     if(footerTime) footerTime.textContent = dateStr;
 });
 </script>
 
 </body>
 </html>
-
