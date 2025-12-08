@@ -129,7 +129,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 padding: 0;
                 background-color: #fff !important;
                 font-family: 'Helvetica', 'Arial', sans-serif; /* Clean font for print */
-                font-size: 6pt; /* Compact font size */
+                font-size: 10pt; /* Compact font size */
                 color: #000;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
@@ -198,7 +198,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             table {
                 width: 100% !important;
                 border-collapse: collapse !important;
-                font-size: 7pt; /* Small readable font */
                 table-layout: fixed; /* Fix column widths */
             }
 
@@ -208,6 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 line-height: 1.1 !important; /* Tighter line height */
                 vertical-align: top;
                 color: #000 !important; /* Force black text */
+                font-size: 8pt !important; /* STRICTLY ENFORCE 8PT FONT */
             }
 
             th {
@@ -215,7 +215,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 font-weight: bold;
                 text-transform: uppercase;
                 text-align: center;
-                font-size: 7pt;
+                font-size: 8pt !important;
             }
 
             /* Specific Column Alignment */
@@ -317,7 +317,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             <div id="print-header" class="hidden print-only"> <!-- Hidden on screen via Tailwind 'hidden', shown in print via CSS -->
                 <img id="print-logo" src="images/logo.png" alt="Logo" style="display:block;">
                 <div class="header-info">
-                    <h1>Protection One</h1>
+                    <h1>Protection One (Pvt.) Ltd.</h1>
                     <p>A Complete Security Solutions</p>
                 </div>
             </div>
