@@ -139,11 +139,9 @@ $conn->close();
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style> body { font-family: 'Inter', sans-serif; } .modal { display: none; } .modal.is-open { display: flex; } #product-table tbody tr { cursor: pointer; } </style>
 </head>
+
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold text-gray-800">Product Inventory</h1>
-        </div>
         
         <div class="mb-6"><input type="text" id="search-box" placeholder="Search products..." class="w-full p-3 border-gray-300 rounded-lg"></div>
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
