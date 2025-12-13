@@ -104,9 +104,6 @@ $conn->close(); // Connection is now closed after all data is fetched
 
     <main class="w-full max-w-lg p-4 sm:p-8">
         <div class="bg-white rounded-2xl shadow-xl p-8">
-            <div class="flex justify-center mb-6">
-                 <img src="images/logo.png" alt="Protection One AMS Logo" class="h-16 w-auto">
-            </div>
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-800">Create New User</h1>
                 <p class="text-gray-500 mt-2">Fill out the form to add a new user.</p>
