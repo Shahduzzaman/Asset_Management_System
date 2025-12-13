@@ -17,10 +17,11 @@ if (!isset($_SESSION["user_id"])) {
     exit();
 }
 
+// --- Initialize Search ---
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
 // --- Fetch Invoices ---
-// Strategy: The invoice table doesn't have client info in your schema.
-// We must find the client via the sold_product table linked to the invoice.
-// We use a subquery or distinct join to fetch the client name associated with the invoice.
+// Base SQL
 $sql = "SELECT 
             inv.invoice_id,
             inv.Invoice_No,
@@ -41,10 +42,25 @@ $sql = "SELECT
              WHERE sp.invoice_id_fk = inv.invoice_id 
              LIMIT 1) as Branch_Name
         FROM invoice inv
-        LEFT JOIN users u ON inv.created_by = u.user_id
-        ORDER BY inv.invoice_id DESC";
+        LEFT JOIN users u ON inv.created_by = u.user_id";
 
-$result = $conn->query($sql);
+// Apply Search Filter if exists
+if (!empty($search)) {
+    $sql .= " WHERE inv.Invoice_No LIKE ?";
+}
+
+$sql .= " ORDER BY inv.invoice_id DESC";
+
+// Execute Query
+if (!empty($search)) {
+    $stmt = $conn->prepare($sql);
+    $searchTerm = "%" . $search . "%";
+    $stmt->bind_param("s", $searchTerm);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $result = $conn->query($sql);
+}
 ?>
 
 <!DOCTYPE html>
@@ -54,18 +70,38 @@ $result = $conn->query($sql);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice History - AMS</title>
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800">
 
     <div class="container mx-auto px-4 pb-8">
+        
+        <div class="mt-8 mb-4 flex justify-between items-center">
+            <h2 class="text-2xl font-semibold text-gray-700">Invoice History</h2>
+            <form action="" method="GET" class="flex gap-2 w-full md:w-1/3">
+                <div class="relative w-full">
+                    <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" 
+                           class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-gray-600 border-gray-300" 
+                           placeholder="Search by Invoice No...">
+                    <div class="absolute left-3 top-2.5 text-gray-400">
+                        <i class="fas fa-search"></i>
+                    </div>
+                </div>
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                    Search
+                </button>
+                <?php if(!empty($search)): ?>
+                    <a href="?" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition flex items-center">
+                        Reset
+                    </a>
+                <?php endif; ?>
+            </form>
+        </div>
+
         <div class="bg-white shadow-lg rounded-lg overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -90,8 +126,24 @@ $result = $conn->query($sql);
                                         <?php echo date('d M Y', strtotime($row['invoice_date'])); ?>
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700">
-                                        <div class="font-bold"><?php echo htmlspecialchars($row['Company_Name'] ?? 'N/A'); ?></div>
-                                        <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['Branch_Name'] ?? ''); ?></div>
+                                        <div class="font-bold">
+                                            <?php 
+                                            if (!empty($row['Company_Name'])) {
+                                                echo htmlspecialchars($row['Company_Name']);
+                                            } elseif (!empty($row['Branch_Name'])) {
+                                                // If Company is empty but Branch exists, show Branch in bold
+                                                echo htmlspecialchars($row['Branch_Name']); 
+                                            }
+                                            ?>
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            <?php 
+                                            // Only show Branch in subtext if Company was shown above (to avoid duplicate)
+                                            if (!empty($row['Company_Name']) && !empty($row['Branch_Name'])) {
+                                                echo htmlspecialchars($row['Branch_Name']); 
+                                            }
+                                            ?>
+                                        </div>
                                         <div class="text-xs text-gray-400 mt-1">Created by: <?php echo htmlspecialchars($row['created_by_name'] ?? 'Unknown'); ?></div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">
@@ -101,13 +153,11 @@ $result = $conn->query($sql);
                                         <?php echo number_format($row['grand_total'], 2); ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                        <!-- View Button (Opens Popup) -->
                                         <button onclick="openInvoiceModal(<?php echo $row['invoice_id']; ?>)" 
                                                 class="text-blue-600 hover:text-blue-900 mr-3" title="View Details">
                                             <i class="fas fa-eye fa-lg"></i>
                                         </button>
                                         
-                                        <!-- Print Button (Opens New Window) -->
                                         <a href="invoice_view.php?id=<?php echo $row['invoice_id']; ?>&print=true" target="_blank" 
                                            class="text-gray-600 hover:text-gray-900" title="Print Invoice">
                                             <i class="fas fa-print fa-lg"></i>
@@ -117,7 +167,9 @@ $result = $conn->query($sql);
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="6" class="px-6 py-10 text-center text-gray-500">No invoices found.</td>
+                                <td colspan="6" class="px-6 py-10 text-center text-gray-500">
+                                    <?php echo !empty($search) ? 'No invoices found matching "'.htmlspecialchars($search).'".' : 'No invoices found.'; ?>
+                                </td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -126,10 +178,8 @@ $result = $conn->query($sql);
         </div>
     </div>
 
-    <!-- Invoice Details Modal -->
     <div id="invoiceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50" style="display: none;">
         <div class="relative top-10 mx-auto p-0 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-md bg-white">
-            <!-- Modal Header -->
             <div class="flex justify-between items-center bg-gray-100 px-4 py-2 border-b rounded-t-md">
                 <h3 class="text-lg font-medium text-gray-900">Invoice Details</h3>
                 <button onclick="closeInvoiceModal()" class="text-gray-600 hover:text-red-600">
@@ -137,14 +187,12 @@ $result = $conn->query($sql);
                 </button>
             </div>
             
-            <!-- Modal Body (Content Loaded via AJAX) -->
             <div id="modalContent" class="p-6 max-h-[80vh] overflow-y-auto">
                 <div class="flex justify-center items-center py-10">
                     <i class="fas fa-spinner fa-spin fa-3x text-blue-500"></i>
                 </div>
             </div>
 
-            <!-- Modal Footer -->
             <div class="flex justify-end px-4 py-3 bg-gray-50 border-t rounded-b-md">
                 <a id="modalPrintBtn" href="#" target="_blank" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">
                     <i class="fas fa-print mr-1"></i> Print
