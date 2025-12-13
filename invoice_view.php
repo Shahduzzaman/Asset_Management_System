@@ -151,7 +151,7 @@ $printed_by = isset($_SESSION['user_name']) ? $_SESSION['user_name'] : 'System A
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Invoice #<?php echo htmlspecialchars($invoice['Invoice_No']); ?></title>
+<title><?php echo isset($invoice_data['Invoice_No']) ? $invoice_data['Invoice_No'] : 'Invoice'; ?></title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
 <style>
@@ -251,7 +251,8 @@ body{
 .sig-label { font-size: 11px; font-weight: bold; text-transform: uppercase; color: #333; }
 
 .corporate-strip {
-    border-top: 2px solid #2563eb;
+    /* Removed blue border-top as requested */
+    border-top: none; 
     padding-top: 8px;
     text-align: center;
     color: #555;
@@ -270,7 +271,7 @@ body{
     margin-top: 5px;
     font-size: 9px;
     color: #aaa;
-    border-top: 1px dotted #eee;
+    border-top: 1px dotted #eee; /* This is the single stripe that remains */
     padding-top: 4px;
 }
 .meta-left { text-align: left; flex: 1; }
