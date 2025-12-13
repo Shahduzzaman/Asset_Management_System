@@ -270,10 +270,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_return'])) {
 <body>
 
 <div class="container py-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 fw-bold text-dark">Sales Return</h1>
-    </div>
-
 
     <?php if($message): ?>
         <div class="alert alert-<?php echo htmlspecialchars($messageType); ?> alert-dismissible fade show" role="alert">
