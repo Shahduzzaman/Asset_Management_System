@@ -65,11 +65,6 @@ $result = $conn->query($sql);
 </head>
 <body class="bg-gray-100 font-sans text-gray-800">
 
-    <!-- Top Bar -->
-    <div class="bg-white shadow p-4 flex items-center justify-between mb-6 sticky top-0 z-10">
-        <h1 class="text-2xl font-bold text-gray-800">Invoice History</h1>
-    </div>
-
     <div class="container mx-auto px-4 pb-8">
         <div class="bg-white shadow-lg rounded-lg overflow-hidden">
             <div class="overflow-x-auto">
