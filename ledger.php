@@ -10,7 +10,6 @@ $_SESSION['last_activity'] = time();
 if (!isset($_SESSION["user_id"])) {
     header("Location: index.php"); exit();
 }
-// Store user name for print footer
 $current_user_name = $_SESSION['user_name'] ?? 'User';
 // --- END: SESSION & SECURITY CHECKS ---
 
@@ -19,26 +18,30 @@ require_once 'connection.php';
 // --- Initial Data Fetch for Filters ---
 $vendors = $conn->query("SELECT vendor_id, vendor_name FROM vendors WHERE is_deleted = FALSE ORDER BY vendor_name")->fetch_all(MYSQLI_ASSOC);
 
-// --- Handle Form Submission to Generate Ledger ---
+// --- Ledger Variables ---
 $transactions = [];
 $total_debit = 0;
 $total_credit = 0;
 $final_balance = 0;
+$opening_balance = 0;
 $selected_vendor_details = null;
 $start_date_display = '';
 $end_date_display = '';
 $errorMessage = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
+
     $vendor_id = filter_input(INPUT_POST, 'vendor_id', FILTER_VALIDATE_INT);
     $start_date = filter_input(INPUT_POST, 'start_date');
-    $end_date = filter_input(INPUT_POST, 'end_date');
+    $end_date   = filter_input(INPUT_POST, 'end_date');
 
     if (!$vendor_id || !$start_date || !$end_date) {
         $errorMessage = "Please select a vendor and valid start/end dates.";
     } elseif ($start_date > $end_date) {
         $errorMessage = "Start date cannot be after the end date.";
     } else {
+
+        // --- Vendor Info ---
         $stmt_vn = $conn->prepare("SELECT vendor_name, contact_person, address, phone, email FROM vendors WHERE vendor_id = ?");
         $stmt_vn->bind_param("i", $vendor_id);
         $stmt_vn->execute();
@@ -46,56 +49,150 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
         $stmt_vn->close();
 
         $start_date_display = $start_date;
-        $end_date_display = $end_date;
+        $end_date_display   = $end_date;
 
-        $sql_payments = "SELECT payment_date as transaction_date, invoice_number, debit_amount as amount, 'Payment Made' as type, payment_method, payment_info_no FROM payment_table WHERE vendor_id = ? AND payment_date BETWEEN ? AND ? AND is_deleted = FALSE";
-        $stmt_pay = $conn->prepare($sql_payments);
+        // =====================================================
+        // OPENING BALANCE CALCULATION (Before Start Date)
+        // =====================================================
+
+        // Payments before start date
+        $stmt_op = $conn->prepare("
+            SELECT COALESCE(SUM(debit_amount), 0) AS total_payment
+            FROM payment_table
+            WHERE vendor_id = ?
+              AND payment_date < ?
+              AND is_deleted = FALSE
+        ");
+        $stmt_op->bind_param("is", $vendor_id, $start_date);
+        $stmt_op->execute();
+        $opening_payment = $stmt_op->get_result()->fetch_assoc()['total_payment'];
+        $stmt_op->close();
+
+        // Purchases before start date
+        $stmt_oc = $conn->prepare("
+            SELECT COALESCE(SUM(quantity * unit_price), 0) AS total_purchase
+            FROM purchased_products
+            WHERE vendor_id = ?
+              AND purchase_date < ?
+              AND is_deleted = FALSE
+        ");
+        $stmt_oc->bind_param("is", $vendor_id, $start_date);
+        $stmt_oc->execute();
+        $opening_purchase = $stmt_oc->get_result()->fetch_assoc()['total_purchase'];
+        $stmt_oc->close();
+
+        // Opening balance = Payments - Purchases
+        $opening_balance = $opening_payment - $opening_purchase;
+
+        // =====================================================
+        // TRANSACTIONS WITHIN DATE RANGE
+        // =====================================================
+
+        $stmt_pay = $conn->prepare("
+            SELECT 
+                payment_date AS transaction_date,
+                invoice_number,
+                debit_amount AS amount,
+                'Payment Made' AS type,
+                payment_method,
+                payment_info_no
+            FROM payment_table
+            WHERE vendor_id = ?
+              AND payment_date BETWEEN ? AND ?
+              AND is_deleted = FALSE
+        ");
         $stmt_pay->bind_param("iss", $vendor_id, $start_date, $end_date);
         $stmt_pay->execute();
         $payments = $stmt_pay->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt_pay->close();
 
-        $sql_purchases = "SELECT purchase_date as transaction_date, invoice_number, SUM(quantity * unit_price) as amount, 'Purchase Received' as type FROM purchased_products WHERE vendor_id = ? AND purchase_date BETWEEN ? AND ? AND is_deleted = FALSE GROUP BY purchase_date, invoice_number";
-        $stmt_p = $conn->prepare($sql_purchases);
+        $stmt_p = $conn->prepare("
+            SELECT 
+                purchase_date AS transaction_date,
+                invoice_number,
+                SUM(quantity * unit_price) AS amount,
+                'Purchase Received' AS type
+            FROM purchased_products
+            WHERE vendor_id = ?
+              AND purchase_date BETWEEN ? AND ?
+              AND is_deleted = FALSE
+            GROUP BY purchase_date, invoice_number
+        ");
         $stmt_p->bind_param("iss", $vendor_id, $start_date, $end_date);
         $stmt_p->execute();
         $purchases = $stmt_p->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt_p->close();
 
         $transactions = array_merge($payments, $purchases);
+
         usort($transactions, function($a, $b) {
-            $dateComparison = strcmp($a['transaction_date'], $b['transaction_date']);
-            if ($dateComparison === 0) {
-                 if ($a['type'] === 'Purchase Received' && $b['type'] === 'Payment Made') return -1;
-                 if ($a['type'] === 'Payment Made' && $b['type'] === 'Purchase Received') return 1;
-                 return 0;
+            $cmp = strcmp($a['transaction_date'], $b['transaction_date']);
+            if ($cmp === 0) {
+                if ($a['type'] === 'Purchase Received' && $b['type'] === 'Payment Made') return -1;
+                if ($a['type'] === 'Payment Made' && $b['type'] === 'Purchase Received') return 1;
+                return 0;
             }
-            return $dateComparison;
+            return $cmp;
         });
 
-        $current_balance = 0;
+        // =====================================================
+        // OPENING BALANCE ROW (PREPENDED)
+        // =====================================================
+
+        array_unshift($transactions, [
+            'transaction_date'  => date('d-m-Y', strtotime($start_date . ' -1 day')),
+            'description'       => 'Opening Balance',
+            'invoice_number'    => '',
+            'debit'             => '',
+            'credit'            => '',
+            'balance'           => $opening_balance,
+            'balance_indicator' => ($opening_balance < 0) ? '(D)' : '(C)'
+        ]);
+
+        // =====================================================
+        // RUNNING BALANCE LOGIC
+        // =====================================================
+
+        $current_balance = $opening_balance;
+
         foreach ($transactions as &$txn) {
+
+            if (($txn['description'] ?? '') === 'Opening Balance') {
+                continue;
+            }
+
             if ($txn['type'] === 'Payment Made') {
-                $txn['debit'] = $txn['amount']; $txn['credit'] = 0; $current_balance += $txn['amount']; $total_debit += $txn['amount'];
-                 $txn['description'] = 'Payment Made';
-                 if(!empty($txn['payment_method'])) $txn['description'] .= ' (' . $txn['payment_method'];
-                 if(!empty($txn['payment_info_no'])) $txn['description'] .= ' #' . $txn['payment_info_no'];
-                 if(!empty($txn['payment_method'])) $txn['description'] .= ')';
+                $txn['debit'] = $txn['amount'];
+                $txn['credit'] = 0;
+                $current_balance += $txn['amount'];
+                $total_debit += $txn['amount'];
+
+                $txn['description'] = 'Payment Made';
+                if (!empty($txn['payment_method'])) $txn['description'] .= ' (' . $txn['payment_method'];
+                if (!empty($txn['payment_info_no'])) $txn['description'] .= ' #' . $txn['payment_info_no'];
+                if (!empty($txn['payment_method'])) $txn['description'] .= ')';
+
             } else {
-                $txn['debit'] = 0; $txn['credit'] = $txn['amount']; $current_balance -= $txn['amount']; $total_credit += $txn['amount'];
+                $txn['debit'] = 0;
+                $txn['credit'] = $txn['amount'];
+                $current_balance -= $txn['amount'];
+                $total_credit += $txn['amount'];
                 $txn['description'] = 'Purchase Received';
             }
+
             $txn['balance'] = $current_balance;
             $txn['balance_indicator'] = ($current_balance < 0) ? '(D)' : '(C)';
         }
         unset($txn);
+
         $final_balance = $current_balance;
     }
 } else {
-     $end_date_default = date('Y-m-d');
-     $start_date_default = date('Y-m-d', strtotime('-1 month'));
+    $end_date_default = date('Y-m-d');
+    $start_date_default = date('Y-m-d', strtotime('-1 month'));
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
