@@ -230,6 +230,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 color: #000;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+                counter-reset: page; /* Initialize page counter */
             }
 
             /* 2. Hide Screen Elements */
@@ -337,7 +338,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 margin-bottom: 2px;
             }
 
-            /* 9. Footer - ADDED !important */
+            /* 9. Footer - UPDATED for Center Date & Right Page Number */
             #print-footer {
                 position: fixed;
                 bottom: 0;
@@ -346,8 +347,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 border-top: 1px solid #000;
                 font-size: 7pt;
                 padding-top: 2px;
-                display: flex !important; /* Forces display */
+                display: flex !important;
                 justify-content: space-between;
+                align-items: center;
+            }
+
+            /* Flex columns for equal spacing to ensure center is truly center */
+            .pf-left {
+                text-align: left;
+                flex: 1;
+            }
+            .pf-center {
+                text-align: center;
+                flex: 1;
+            }
+            .pf-right {
+                text-align: right;
+                flex: 1;
+            }
+
+            /* CSS Page Counter logic */
+            .page-number:after {
+                counter-increment: page;
+                /* content combines current page counter and Total pages variable (calculated via JS) */
+                content: "Page " counter(page) " of " var(--total-pages, "..");
             }
             
             /* Hide Screen-Only Classes in Print */
@@ -368,13 +391,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
 <body class="bg-gray-100 min-h-screen">
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
-        
-        <!-- Screen Header -->
-        <div class="flex justify-between items-center mb-6 no-print">
-            <h1 class="text-3xl font-bold text-gray-800">Vendor Ledger</h1>
-        </div>
 
-        <!-- Filter Form (Screen Only) -->
         <div class="bg-white p-6 rounded-xl shadow-md mb-8 no-print">
             <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">Generate Ledger Report</h2>
              <?php if ($errorMessage): ?><div id="alert-box" class="bg-red-100 border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"><span><?php echo $errorMessage; ?></span></div><?php endif; ?>
@@ -404,23 +421,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             </form>
         </div>
 
-        <!-- LEDGER RESULT -->
         <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger']) && empty($errorMessage)): ?>
         
-        <!-- WRAPPER: Handles both Screen and Print visibility logic internally -->
         <div id="print-section">
             
-            <!-- 1. HEADER (Print Optimized) -->
-            <div id="print-header" class="hidden print-only"> <!-- Hidden on screen via Tailwind 'hidden', shown in print via CSS -->
-                <img id="print-logo" src="images/logo.png" alt="Logo" style="display:block;">
+            <div id="print-header" class="hidden print-only"> <img id="print-logo" src="images/logo.png" alt="Logo" style="display:block;">
                 <div class="header-info">
                     <h1>Protection One (Pvt.) Ltd.</h1>
                     <p>A Complete Security Solutions</p>
                 </div>
             </div>
 
-            <!-- 2. VENDOR DETAILS & DATE (Print Optimized Structure) -->
-            <!-- Screen View Version -->
             <div class="bg-white rounded-xl shadow-md overflow-hidden mb-4 no-print">
                  <div class="p-6 border-b">
                      <h2 class="text-2xl font-bold text-gray-800 mb-1"><?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?></h2>
@@ -428,9 +439,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                  </div>
             </div>
 
-            <!-- Print View Version -->
-            <div class="vendor-info-box hidden print-only"> <!-- Only visible in print -->
-                <div class="vendor-info-col">
+            <div class="vendor-info-box hidden print-only"> <div class="vendor-info-col">
                     <strong>Vendor:</strong> <?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?><br>
                     <strong>Contact:</strong> <?php echo htmlspecialchars($selected_vendor_details['contact_person'] ?? ''); ?><br>
                     <strong>Phone:</strong> <?php echo htmlspecialchars($selected_vendor_details['phone'] ?? ''); ?>
@@ -442,7 +451,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 </div>
             </div>
 
-            <!-- 3. DATA TABLE -->
             <div class="bg-white rounded-xl shadow-md overflow-hidden print:shadow-none print:rounded-none">
                 <div class="overflow-x-auto print:overflow-visible">
                     <table class="min-w-full print:w-full">
@@ -482,9 +490,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 </div>
             </div>
 
-            <!-- 4. SUMMARY SECTION -->
             <div class="summary-section p-6 bg-gray-50 border-t print:bg-white print:border-none print:p-0 no-print">
-                 <!-- Screen View Summary -->
                  <h3 class="text-lg font-semibold mb-3 text-gray-700">Ledger Summary</h3>
                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm font-medium text-gray-700">
                      <p>Total Payments: <span class="font-bold text-green-600"><?php echo number_format($total_debit, 2); ?></span></p>
@@ -493,7 +499,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                  </div>
             </div>
 
-            <!-- Print View Summary (More Compact) -->
             <div class="summary-box hidden print-only">
                 <div class="summary-row">
                     <span>Total Payments (Debit):</span>
@@ -516,19 +521,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 </div>
             </div>
 
-            <!-- 5. FOOTER (Print Only) -->
             <div id="print-footer" class="hidden print-only">
-                 <div>Printed by: <?php echo htmlspecialchars($current_user_name); ?></div>
-                 <div><span id="print-datetime-footer"></span></div>
+                 <div class="pf-left">
+                     Printed by: <?php echo htmlspecialchars($current_user_name); ?>
+                 </div>
+                 <div class="pf-center">
+                     <span id="print-datetime-footer"></span>
+                 </div>
+                 <div class="pf-right">
+                     <span class="page-number"></span>
+                 </div>
             </div>
 
-            <!-- Print Button (Screen Only) -->
             <div class="mt-6 text-right no-print">
                 <button onclick="window.print()" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition text-sm">Print Ledger</button>
             </div>
 
-        </div> <!-- End print-section -->
-        <?php endif; ?>
+        </div> <?php endif; ?>
 
     </div>
 
@@ -547,6 +556,17 @@ document.addEventListener('DOMContentLoaded', () => {
      const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
      const footerTime = document.getElementById('print-datetime-footer');
      if(footerTime) footerTime.textContent = dateStr;
+
+     // --- CALCULATE TOTAL PAGES ESTIMATION FOR PRINT ---
+     // Standard browsers do not support "Total Pages" in CSS. This JS estimates it based on A4 height.
+     // A4 Height (297mm) at 96PPI is approx 1123px. Subtracting margins (~40px) = 1083px.
+     // We use a safe division to estimate the page count.
+     if (document.getElementById('print-section')) {
+         const contentHeight = document.body.scrollHeight;
+         const a4HeightPx = 1123; 
+         const estimatedPages = Math.ceil(contentHeight / a4HeightPx);
+         document.documentElement.style.setProperty('--total-pages', '"' + estimatedPages + '"');
+     }
 });
 </script>
 
