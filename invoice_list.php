@@ -21,7 +21,6 @@ if (!isset($_SESSION["user_id"])) {
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 // --- Fetch Invoices ---
-// Base SQL
 $sql = "SELECT 
             inv.invoice_id,
             inv.Invoice_No,
@@ -29,13 +28,11 @@ $sql = "SELECT
             inv.ExcludingTax_TotalPrice as sub_total,
             inv.IncludingTax_TotalPrice as grand_total,
             u.user_name as created_by_name,
-            -- Subquery to get Company Name from sold_product -> client_head
             (SELECT ch.Company_Name 
              FROM sold_product sp 
              JOIN client_head ch ON sp.client_head_id_fk = ch.client_head_id 
              WHERE sp.invoice_id_fk = inv.invoice_id 
              LIMIT 1) as Company_Name,
-            -- Subquery to get Branch Name from sold_product -> client_branch
             (SELECT cb.Branch_Name 
              FROM sold_product sp 
              JOIN client_branch cb ON sp.client_branch_id_fk = cb.client_branch_id 
@@ -44,14 +41,12 @@ $sql = "SELECT
         FROM invoice inv
         LEFT JOIN users u ON inv.created_by = u.user_id";
 
-// Apply Search Filter if exists
 if (!empty($search)) {
     $sql .= " WHERE inv.Invoice_No LIKE ?";
 }
 
 $sql .= " ORDER BY inv.invoice_id DESC";
 
-// Execute Query
 if (!empty($search)) {
     $stmt = $conn->prepare($sql);
     $searchTerm = "%" . $search . "%";
@@ -69,11 +64,8 @@ if (!empty($search)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice History - AMS</title>
-    
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800">
@@ -131,14 +123,12 @@ if (!empty($search)) {
                                             if (!empty($row['Company_Name'])) {
                                                 echo htmlspecialchars($row['Company_Name']);
                                             } elseif (!empty($row['Branch_Name'])) {
-                                                // If Company is empty but Branch exists, show Branch in bold
                                                 echo htmlspecialchars($row['Branch_Name']); 
                                             }
                                             ?>
                                         </div>
                                         <div class="text-xs text-gray-500">
                                             <?php 
-                                            // Only show Branch in subtext if Company was shown above (to avoid duplicate)
                                             if (!empty($row['Company_Name']) && !empty($row['Branch_Name'])) {
                                                 echo htmlspecialchars($row['Branch_Name']); 
                                             }
@@ -153,15 +143,15 @@ if (!empty($search)) {
                                         <?php echo number_format($row['grand_total'], 2); ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                        <button onclick="openInvoiceModal(<?php echo $row['invoice_id']; ?>)" 
+                                        <button onclick="openInvoiceModal(<?php echo $row['invoice_id']; ?>, '<?php echo $row['Invoice_No']; ?>')" 
                                                 class="text-blue-600 hover:text-blue-900 mr-3" title="View Details">
                                             <i class="fas fa-eye fa-lg"></i>
                                         </button>
                                         
-                                        <a href="invoice_view.php?id=<?php echo $row['invoice_id']; ?>&print=true" target="_blank" 
-                                           class="text-gray-600 hover:text-gray-900" title="Print Invoice">
+                                        <button onclick="printInvoiceDirect(<?php echo $row['invoice_id']; ?>, '<?php echo $row['Invoice_No']; ?>')" 
+                                                class="text-gray-600 hover:text-gray-900 focus:outline-none" title="Print Invoice">
                                             <i class="fas fa-print fa-lg"></i>
-                                        </a>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endwhile; ?>
@@ -194,9 +184,9 @@ if (!empty($search)) {
             </div>
 
             <div class="flex justify-end px-4 py-3 bg-gray-50 border-t rounded-b-md">
-                <a id="modalPrintBtn" href="#" target="_blank" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">
+                <button id="modalPrintBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">
                     <i class="fas fa-print mr-1"></i> Print
-                </a>
+                </button>
                 <button onclick="closeInvoiceModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
                     Close
                 </button>
@@ -205,13 +195,18 @@ if (!empty($search)) {
     </div>
 
     <script>
-        function openInvoiceModal(invoiceId) {
+        // --- 1. MODAL LOGIC ---
+        function openInvoiceModal(invoiceId, invoiceNo) {
             const modal = document.getElementById('invoiceModal');
             const content = document.getElementById('modalContent');
             const printBtn = document.getElementById('modalPrintBtn');
             
             $(modal).fadeIn(200);
-            printBtn.href = `invoice_view.php?id=${invoiceId}&print=true`;
+            
+            // Pass the invoiceNo to the print function from within the modal
+            printBtn.onclick = function() {
+                printInvoiceDirect(invoiceId, invoiceNo);
+            };
 
             $.ajax({
                 url: 'invoice_view.php',
@@ -237,6 +232,39 @@ if (!empty($search)) {
                 closeInvoiceModal();
             }
         });
+
+        // --- 2. DIRECT PRINT FUNCTION WITH FILENAME ---
+        function printInvoiceDirect(invoiceId, invoiceNo) {
+            // Remove existing frame
+            var existingFrame = document.getElementById('printFrame');
+            if (existingFrame) {
+                document.body.removeChild(existingFrame);
+            }
+
+            // Create invisible iframe
+            var iframe = document.createElement('iframe');
+            iframe.id = 'printFrame';
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            
+            iframe.src = 'invoice_view.php?id=' + invoiceId + '&print=true';
+
+            // IMPORTANT: We try to set the title from here, 
+            // but the BEST practice is to set <title> in invoice_view.php
+            iframe.onload = function() {
+                // Attempt to overwrite the title of the iframe document
+                // This title is what the PDF 'Save As' feature uses
+                if(iframe.contentDocument) {
+                    iframe.contentDocument.title = invoiceNo;
+                }
+            };
+
+            document.body.appendChild(iframe);
+        }
     </script>
 
 </body>
