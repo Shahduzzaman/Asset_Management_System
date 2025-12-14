@@ -1,13 +1,11 @@
 <?php
-session_start();
+require_once 'session_guard.php';
+
+$current_user_id = $_SESSION['user_id'];
+
 require_once 'connection.php';
 
 header('Content-Type: application/json');
-
-if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
-    exit();
-}
 
 $return_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
