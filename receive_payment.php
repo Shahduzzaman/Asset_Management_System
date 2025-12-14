@@ -52,69 +52,74 @@ $errorMessage = '';
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $invoice_id = (int)$_POST['invoice_id'];
     $payment_date = $_POST['payment_date'];
+    $payment_method = $_POST['payment_method'];
+    
+    // Logic: If Cash, Transaction Number is NULL, otherwise take the input
+    $transaction_number = ($payment_method === 'Cash') ? null : trim($_POST['transaction_number']);
+    
     $received_amount = (float)$_POST['received_amount'];
 
     if ($invoice_id && $received_amount > 0) {
-        $sql_check = "SELECT IncludingTax_TotalPrice as Total_Amount, 
-                      (SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id_fk = invoice.invoice_id AND is_deleted = 0) as paid_so_far 
-                      FROM invoice WHERE invoice_id = ?";
-        $stmt_check = $conn->prepare($sql_check);
-        $stmt_check->bind_param("i", $invoice_id);
-        $stmt_check->execute();
-        $check_data = $stmt_check->get_result()->fetch_assoc();
-        
-        $real_due = $check_data['Total_Amount'] - $check_data['paid_so_far'];
-
-        if ($received_amount > ($real_due + 0.10)) { 
-            $errorMessage = "Error: Amount cannot be greater than the payable due amount.";
+        // Validation for Non-Cash methods
+        if ($payment_method !== 'Cash' && empty($transaction_number)) {
+            $errorMessage = "Transaction Number is required for " . $payment_method;
         } else {
-            $conn->begin_transaction();
-            try {
-                // --- 1. GENERATE MONEY RECEIPT NUMBER ---
-                // We fetch the last ID using FOR UPDATE to lock the read until this transaction commits
-                // This prevents duplicate numbers if two people submit at the exact same time.
-                $sql_mr = "SELECT money_receipt_no FROM payments ORDER BY payment_id DESC LIMIT 1 FOR UPDATE";
-                $res_mr = $conn->query($sql_mr);
-                $row_mr = $res_mr->fetch_assoc();
-                
-                $next_num = 1; // Default if no records exist
-                if ($row_mr && !empty($row_mr['money_receipt_no'])) {
-                    // Extract the number part from "P1MR-xxxxxx"
-                    $parts = explode('-', $row_mr['money_receipt_no']);
-                    if (isset($parts[1])) {
-                        $next_num = intval($parts[1]) + 1;
+            $sql_check = "SELECT IncludingTax_TotalPrice as Total_Amount, 
+                          (SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id_fk = invoice.invoice_id AND is_deleted = 0) as paid_so_far 
+                          FROM invoice WHERE invoice_id = ?";
+            $stmt_check = $conn->prepare($sql_check);
+            $stmt_check->bind_param("i", $invoice_id);
+            $stmt_check->execute();
+            $check_data = $stmt_check->get_result()->fetch_assoc();
+            
+            $real_due = $check_data['Total_Amount'] - $check_data['paid_so_far'];
+
+            if ($received_amount > ($real_due + 0.10)) { 
+                $errorMessage = "Error: Amount cannot be greater than the payable due amount.";
+            } else {
+                $conn->begin_transaction();
+                try {
+                    // 1. GENERATE MONEY RECEIPT NUMBER
+                    $sql_mr = "SELECT money_receipt_no FROM payments ORDER BY payment_id DESC LIMIT 1 FOR UPDATE";
+                    $res_mr = $conn->query($sql_mr);
+                    $row_mr = $res_mr->fetch_assoc();
+                    
+                    $next_num = 1;
+                    if ($row_mr && !empty($row_mr['money_receipt_no'])) {
+                        $parts = explode('-', $row_mr['money_receipt_no']);
+                        if (isset($parts[1])) {
+                            $next_num = intval($parts[1]) + 1;
+                        }
                     }
+                    $new_mr_no = 'P1MR-' . str_pad($next_num, 6, '0', STR_PAD_LEFT);
+
+                    // 2. INSERT PAYMENT (Updated with Method & Transaction No)
+                    $sql_insert = "INSERT INTO payments (invoice_id_fk, payment_date, payment_method, transaction_number, amount, money_receipt_no, created_by) 
+                                   VALUES (?, ?, ?, ?, ?, ?, ?)";
+                    $stmt_ins = $conn->prepare($sql_insert);
+                    $stmt_ins->bind_param("isssdsi", $invoice_id, $payment_date, $payment_method, $transaction_number, $received_amount, $new_mr_no, $current_user_id);
+                    $stmt_ins->execute();
+
+                    // 3. UPDATE STATUS
+                    $new_total_paid = $check_data['paid_so_far'] + $received_amount;
+                    $new_status = 0; 
+                    if (abs($new_total_paid - $check_data['Total_Amount']) < 0.10) {
+                        $new_status = 2; // Paid
+                    } elseif ($new_total_paid > 0) {
+                        $new_status = 1; // Partial
+                    }
+
+                    $sql_update = "UPDATE invoice SET status = ? WHERE invoice_id = ?";
+                    $stmt_upd = $conn->prepare($sql_update);
+                    $stmt_upd->bind_param("ii", $new_status, $invoice_id);
+                    $stmt_upd->execute();
+
+                    $conn->commit();
+                    $successMessage = "Payment Received! <br>Receipt No: <strong>" . $new_mr_no . "</strong>";
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    $errorMessage = "Transaction failed: " . $e->getMessage();
                 }
-                // Format: P1MR-000001
-                $new_mr_no = 'P1MR-' . str_pad($next_num, 6, '0', STR_PAD_LEFT);
-
-                // --- 2. INSERT PAYMENT ---
-                $sql_insert = "INSERT INTO payments (invoice_id_fk, payment_date, amount, money_receipt_no, created_by) VALUES (?, ?, ?, ?, ?)";
-                $stmt_ins = $conn->prepare($sql_insert);
-                $stmt_ins->bind_param("isdsi", $invoice_id, $payment_date, $received_amount, $new_mr_no, $current_user_id);
-                $stmt_ins->execute();
-
-                // --- 3. DETERMINE NEW STATUS ---
-                $new_total_paid = $check_data['paid_so_far'] + $received_amount;
-                $new_status = 0; 
-
-                if (abs($new_total_paid - $check_data['Total_Amount']) < 0.10) {
-                    $new_status = 2; // Paid
-                } elseif ($new_total_paid > 0) {
-                    $new_status = 1; // Partial
-                }
-
-                // --- 4. UPDATE INVOICE ---
-                $sql_update = "UPDATE invoice SET status = ? WHERE invoice_id = ?";
-                $stmt_upd = $conn->prepare($sql_update);
-                $stmt_upd->bind_param("ii", $new_status, $invoice_id);
-                $stmt_upd->execute();
-
-                $conn->commit();
-                $successMessage = "Payment Received successfully! <br><strong>Receipt No: " . $new_mr_no . "</strong>";
-            } catch (Exception $e) {
-                $conn->rollback();
-                $errorMessage = "Transaction failed: " . $e->getMessage();
             }
         }
     } else {
@@ -122,7 +127,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// --- FETCH INVOICES FOR DROPDOWN ---
+// --- FETCH INVOICES ---
 $sql_list = "SELECT i.invoice_id, i.Invoice_No, i.IncludingTax_TotalPrice, 
              ch.Company_Name, cb.Branch_Name
              FROM invoice i
@@ -172,41 +177,45 @@ $invoices = $conn->query($sql_list);
                 </div>
 
                 <div id="invoice-details" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 grid grid-cols-3 gap-4 text-center">
-                    <div>
-                        <p class="text-xs text-gray-500 uppercase">Total Amount</p>
-                        <p class="font-bold text-gray-800" id="disp_total">0.00</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-500 uppercase">Paid So Far</p>
-                        <p class="font-bold text-blue-600" id="disp_paid">0.00</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-500 uppercase">Payable Due</p>
-                        <p class="font-bold text-red-600 text-lg" id="disp_due">0.00</p>
-                    </div>
+                    <div><p class="text-xs text-gray-500 uppercase">Total Amount</p><p class="font-bold text-gray-800" id="disp_total">0.00</p></div>
+                    <div><p class="text-xs text-gray-500 uppercase">Paid So Far</p><p class="font-bold text-blue-600" id="disp_paid">0.00</p></div>
+                    <div><p class="text-xs text-gray-500 uppercase">Payable Due</p><p class="font-bold text-red-600 text-lg" id="disp_due">0.00</p></div>
                 </div>
 
                 <div>
                     <label for="payment_date" class="block text-sm font-medium text-gray-700 mb-1">Payment Date</label>
-                    <input type="date" id="payment_date" name="payment_date" required
-                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    <input type="date" id="payment_date" name="payment_date" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="payment_method" class="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                        <select id="payment_method" name="payment_method" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500">
+                            <option value="Cash">Cash</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Bank Deposit">Bank Deposit</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="transaction_number" class="block text-sm font-medium text-gray-700 mb-1">Transaction Number</label>
+                        <input type="text" id="transaction_number" name="transaction_number" disabled placeholder="N/A for Cash"
+                               class="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 focus:ring-blue-500 transition">
+                    </div>
                 </div>
 
                 <div>
                     <label for="received_amount" class="block text-sm font-medium text-gray-700 mb-1">Received Amount</label>
                     <div class="relative rounded-md shadow-sm">
-                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                            <span class="text-gray-500 sm:text-sm">$</span>
-                        </div>
+                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><span class="text-gray-500 sm:text-sm">$</span></div>
                         <input type="number" step="0.01" min="0.01" id="received_amount" name="received_amount" required disabled
-                               class="block w-full rounded-md border-gray-300 pl-7 p-3 focus:border-blue-500 focus:ring-blue-500 sm:text-sm bg-gray-100 disabled:cursor-not-allowed transition" 
-                               placeholder="0.00">
+                               class="block w-full rounded-md border-gray-300 pl-7 p-3 focus:border-blue-500 bg-gray-100" placeholder="0.00">
                     </div>
                     <p id="amount-hint" class="mt-1 text-xs text-red-500 hidden">Amount cannot exceed Payable Due.</p>
                 </div>
 
                 <div class="pt-4">
-                    <button type="button" id="btn-pre-submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <button type="button" id="btn-pre-submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                         Receive Payment
                     </button>
                 </div>
@@ -217,14 +226,14 @@ $invoices = $conn->query($sql_list);
     <div id="confirmModal" class="fixed inset-0 z-50 hidden bg-gray-900 bg-opacity-75 flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <h3 class="text-xl font-bold text-gray-900 mb-2">Confirm Payment</h3>
-            <p class="text-gray-500 text-sm mb-4">Please verify the details below before saving.</p>
+            <p class="text-gray-500 text-sm mb-4">Please verify the details below.</p>
             
             <div class="bg-gray-50 p-4 rounded-lg space-y-2 mb-6 text-sm">
                 <div class="flex justify-between"><span class="text-gray-600">Invoice No:</span> <span class="font-medium text-gray-900" id="conf_invoice"></span></div>
                 <div class="flex justify-between"><span class="text-gray-600">Date:</span> <span class="font-medium text-gray-900" id="conf_date"></span></div>
-                <div class="flex justify-between border-t pt-2 mt-2"><span class="text-gray-800 font-bold">Received Amount:</span> <span class="font-bold text-green-600 text-lg" id="conf_amount"></span></div>
-                <div class="flex justify-between pt-1"><span class="text-gray-600">Resulting Status:</span> <span class="font-medium" id="conf_status"></span></div>
-                <div class="flex justify-between pt-1 text-xs text-gray-400 italic">Receipt No will be auto-generated.</div>
+                <div class="flex justify-between"><span class="text-gray-600">Method:</span> <span class="font-medium text-gray-900" id="conf_method"></span></div>
+                <div class="flex justify-between hidden" id="conf_trans_row"><span class="text-gray-600">Trans No:</span> <span class="font-medium text-gray-900" id="conf_trans"></span></div>
+                <div class="flex justify-between border-t pt-2 mt-2"><span class="text-gray-800 font-bold">Amount:</span> <span class="font-bold text-green-600 text-lg" id="conf_amount"></span></div>
             </div>
 
             <div class="flex space-x-3">
@@ -242,14 +251,22 @@ $invoices = $conn->query($sql_list);
             document.getElementById('payment_date').valueAsDate = new Date();
 
             let currentDue = 0;
-            let currentTotal = 0;
             let currentInvoiceNo = '';
 
+            // Toggle Transaction ID based on Payment Method
+            $('#payment_method').on('change', function() {
+                const method = $(this).val();
+                const transInput = $('#transaction_number');
+                if (method === 'Cash') {
+                    transInput.val('').prop('disabled', true).addClass('bg-gray-100').attr('placeholder', 'N/A for Cash');
+                } else {
+                    transInput.prop('disabled', false).removeClass('bg-gray-100').attr('placeholder', 'Enter Transaction No');
+                }
+            });
+
+            // Invoice Selection Logic
             $('#invoice_id').on('change', function() {
                 const invoiceId = $(this).val();
-                const amountInput = $('#received_amount');
-                const submitBtn = $('#btn-pre-submit');
-
                 if (invoiceId) {
                     $.ajax({
                         url: 'receive_payment.php',
@@ -258,67 +275,64 @@ $invoices = $conn->query($sql_list);
                         success: function(response) {
                             if (response.status === 'success') {
                                 currentDue = parseFloat(response.due_amount);
-                                currentTotal = parseFloat(response.total_amount);
                                 currentInvoiceNo = response.invoice_no;
-
-                                $('#disp_total').text(currentTotal.toFixed(2));
+                                $('#disp_total').text(parseFloat(response.total_amount).toFixed(2));
                                 $('#disp_paid').text(parseFloat(response.paid_so_far).toFixed(2));
                                 $('#disp_due').text(currentDue.toFixed(2));
                                 $('#invoice-details').removeClass('hidden');
-
-                                amountInput.prop('disabled', false).removeClass('bg-gray-100').val('').focus();
-                                amountInput.attr('max', currentDue);
-                                submitBtn.prop('disabled', true);
+                                $('#received_amount').prop('disabled', false).removeClass('bg-gray-100').val('').focus().attr('max', currentDue);
+                                $('#btn-pre-submit').prop('disabled', true);
                             }
                         }
                     });
                 } else {
                     $('#invoice-details').addClass('hidden');
-                    amountInput.prop('disabled', true).addClass('bg-gray-100').val('');
-                    submitBtn.prop('disabled', true);
+                    $('#received_amount').prop('disabled', true);
+                    $('#btn-pre-submit').prop('disabled', true);
                 }
             });
 
+            // Validate Amount
             $('#received_amount').on('input', function() {
                 const val = parseFloat($(this).val());
-                const hint = $('#amount-hint');
                 const btn = $('#btn-pre-submit');
-
-                if (isNaN(val) || val <= 0) {
+                if (isNaN(val) || val <= 0 || val > (currentDue + 0.1)) {
                     btn.prop('disabled', true);
-                    hint.addClass('hidden');
-                } else if (val > (currentDue + 0.1)) {
-                    btn.prop('disabled', true);
-                    hint.removeClass('hidden');
+                    if (val > (currentDue + 0.1)) $('#amount-hint').removeClass('hidden');
                 } else {
                     btn.prop('disabled', false);
-                    hint.addClass('hidden');
+                    $('#amount-hint').addClass('hidden');
                 }
             });
 
-            const modal = $('#confirmModal');
-            const form = $('#paymentForm');
-
+            // Modal Logic
             $('#btn-pre-submit').click(function() {
-                const amount = parseFloat($('#received_amount').val());
-                const date = $('#payment_date').val();
-                let statusText = "Partial Payment";
-                let statusClass = "text-yellow-600";
+                const method = $('#payment_method').val();
+                const trans = $('#transaction_number').val();
                 
-                if (Math.abs(amount - currentDue) < 0.1) {
-                    statusText = "Fully Paid";
-                    statusClass = "text-green-600";
+                // Validate Trans No for non-cash
+                if(method !== 'Cash' && !trans.trim()) {
+                    alert('Please enter a Transaction Number for ' + method);
+                    return;
                 }
 
                 $('#conf_invoice').text(currentInvoiceNo);
-                $('#conf_date').text(date);
-                $('#conf_amount').text(amount.toFixed(2));
-                $('#conf_status').text(statusText).attr('class', 'font-bold ' + statusClass);
-                modal.removeClass('hidden');
+                $('#conf_date').text($('#payment_date').val());
+                $('#conf_amount').text(parseFloat($('#received_amount').val()).toFixed(2));
+                $('#conf_method').text(method);
+                
+                if (method !== 'Cash') {
+                    $('#conf_trans_row').removeClass('hidden');
+                    $('#conf_trans').text(trans);
+                } else {
+                    $('#conf_trans_row').addClass('hidden');
+                }
+                
+                $('#confirmModal').removeClass('hidden');
             });
 
-            $('#btn-cancel').click(function() { modal.addClass('hidden'); });
-            $('#btn-confirm').click(function() { form.submit(); });
+            $('#btn-cancel').click(function() { $('#confirmModal').addClass('hidden'); });
+            $('#btn-confirm').click(function() { $('#paymentForm').submit(); });
         });
     </script>
 </body>
