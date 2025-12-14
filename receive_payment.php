@@ -1,0 +1,340 @@
+<?php
+require_once 'session_guard.php';
+$current_user_id = $_SESSION['user_id'];
+require_once 'connection.php';
+
+// --- START: AJAX HANDLER (Fetch Invoice Details) ---
+if (isset($_GET['action']) && $_GET['action'] === 'get_invoice_details') {
+    header('Content-Type: application/json');
+    
+    $invoice_id = isset($_GET['invoice_id']) ? (int)$_GET['invoice_id'] : 0;
+    
+    if ($invoice_id > 0) {
+        // 1. Get Invoice Total
+        $sql_inv = "SELECT Total_Amount, invoice_no FROM invoice WHERE invoice_id = ? AND is_deleted = 0";
+        $stmt = $conn->prepare($sql_inv);
+        $stmt->bind_param("i", $invoice_id);
+        $stmt->execute();
+        $res_inv = $stmt->get_result()->fetch_assoc();
+        
+        if ($res_inv) {
+            $total_amount = (float)$res_inv['Total_Amount'];
+            
+            // 2. Get Total Paid So Far
+            $sql_paid = "SELECT SUM(amount) as total_paid FROM payments WHERE invoice_id_fk = ? AND is_deleted = 0";
+            $stmt_paid = $conn->prepare($sql_paid);
+            $stmt_paid->bind_param("i", $invoice_id);
+            $stmt_paid->execute();
+            $res_paid = $stmt_paid->get_result()->fetch_assoc();
+            
+            $paid_so_far = $res_paid['total_paid'] ? (float)$res_paid['total_paid'] : 0.00;
+            $due_amount = $total_amount - $paid_so_far;
+            
+            echo json_encode([
+                'status' => 'success',
+                'invoice_no' => $res_inv['invoice_no'],
+                'total_amount' => $total_amount,
+                'paid_so_far' => $paid_so_far,
+                'due_amount' => max(0, $due_amount) // Ensure no negative due
+            ]);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Invoice not found']);
+        }
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid ID']);
+    }
+    exit();
+}
+// --- END: AJAX HANDLER ---
+
+// --- START: FORM SUBMISSION HANDLER ---
+$successMessage = '';
+$errorMessage = '';
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $invoice_id = (int)$_POST['invoice_id'];
+    $payment_date = $_POST['payment_date'];
+    $received_amount = (float)$_POST['received_amount'];
+
+    if ($invoice_id && $received_amount > 0) {
+        // Double Check Logic (Server Side Validation)
+        // Recalculate due amount to prevent hacking inputs
+        $sql_check = "SELECT Total_Amount, (SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id_fk = invoice.invoice_id AND is_deleted = 0) as paid_so_far 
+                      FROM invoice WHERE invoice_id = ?";
+        $stmt_check = $conn->prepare($sql_check);
+        $stmt_check->bind_param("i", $invoice_id);
+        $stmt_check->execute();
+        $check_data = $stmt_check->get_result()->fetch_assoc();
+        
+        $real_due = $check_data['Total_Amount'] - $check_data['paid_so_far'];
+
+        if ($received_amount > ($real_due + 0.01)) { // Allow tiny float margin
+            $errorMessage = "Error: Amount cannot be greater than the payable due amount.";
+        } else {
+            // Start Transaction
+            $conn->begin_transaction();
+            try {
+                // 1. Insert Payment
+                $sql_insert = "INSERT INTO payments (invoice_id_fk, payment_date, amount, created_by) VALUES (?, ?, ?, ?)";
+                $stmt_ins = $conn->prepare($sql_insert);
+                $stmt_ins->bind_param("isdi", $invoice_id, $payment_date, $received_amount, $current_user_id);
+                $stmt_ins->execute();
+
+                // 2. Determine New Status
+                $new_total_paid = $check_data['paid_so_far'] + $received_amount;
+                $new_status = 0; // Default: Due
+
+                // Floating point comparison needs precision handling
+                if (abs($new_total_paid - $check_data['Total_Amount']) < 0.01) {
+                    $new_status = 2; // Paid
+                } elseif ($new_total_paid > 0 && $new_total_paid < $check_data['Total_Amount']) {
+                    $new_status = 1; // Partial
+                }
+
+                // 3. Update Invoice Status
+                $sql_update = "UPDATE invoice SET status = ? WHERE invoice_id = ?";
+                $stmt_upd = $conn->prepare($sql_update);
+                $stmt_upd->bind_param("ii", $new_status, $invoice_id);
+                $stmt_upd->execute();
+
+                $conn->commit();
+                $successMessage = "Payment of " . number_format($received_amount, 2) . " received successfully!";
+            } catch (Exception $e) {
+                $conn->rollback();
+                $errorMessage = "Transaction failed: " . $e->getMessage();
+            }
+        }
+    } else {
+        $errorMessage = "Please select an invoice and enter a valid amount.";
+    }
+}
+
+// --- FETCH INVOICES FOR DROPDOWN ---
+// Only fetch invoices that are NOT fully paid (status != 2)
+$sql_list = "SELECT i.invoice_id, i.invoice_no, i.Total_Amount, 
+             ch.Company_Name, cb.Branch_Name
+             FROM invoice i
+             LEFT JOIN client_head ch ON i.client_head_id_fk = ch.client_head_id
+             LEFT JOIN client_branch cb ON i.client_branch_id_fk = cb.client_branch_id
+             WHERE i.status != 2 AND i.is_deleted = 0
+             ORDER BY i.created_at DESC";
+$invoices = $conn->query($sql_list);
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Receive Payment</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style> 
+        body { font-family: 'Inter', sans-serif; } 
+        /* Custom Select2 Tailwind Integration Tweaks */
+        .select2-container .select2-selection--single { height: 46px; border-color: #d1d5db; border-radius: 0.5rem; display: flex; align-items: center; }
+        .select2-container--default .select2-selection--single .select2-selection__arrow { top: 10px; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen py-8">
+
+    <div class="container mx-auto px-4 max-w-2xl">
+        
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Receive Payment</h2>
+
+            <?php if ($successMessage): ?><div class="bg-green-100 border-green-400 text-green-700 px-4 py-3 rounded mb-4"><?php echo $successMessage; ?></div><?php endif; ?>
+            <?php if ($errorMessage): ?><div class="bg-red-100 border-red-400 text-red-700 px-4 py-3 rounded mb-4"><?php echo $errorMessage; ?></div><?php endif; ?>
+
+            <form id="paymentForm" action="" method="POST" class="space-y-6">
+                
+                <div>
+                    <label for="invoice_id" class="block text-sm font-medium text-gray-700 mb-1">Select Invoice</label>
+                    <select id="invoice_id" name="invoice_id" class="w-full" required>
+                        <option value="">Search Invoice No or Client...</option>
+                        <?php while($inv = $invoices->fetch_assoc()): 
+                            $client = !empty($inv['Branch_Name']) ? $inv['Branch_Name'] : $inv['Company_Name'];
+                            $display = $inv['invoice_no'] . " - " . $client . " (Total: " . $inv['Total_Amount'] . ")";
+                        ?>
+                            <option value="<?php echo $inv['invoice_id']; ?>"><?php echo htmlspecialchars($display); ?></option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+
+                <div id="invoice-details" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Total Amount</p>
+                        <p class="font-bold text-gray-800" id="disp_total">0.00</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Paid So Far</p>
+                        <p class="font-bold text-blue-600" id="disp_paid">0.00</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Payable Due</p>
+                        <p class="font-bold text-red-600 text-lg" id="disp_due">0.00</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="payment_date" class="block text-sm font-medium text-gray-700 mb-1">Payment Date</label>
+                    <input type="date" id="payment_date" name="payment_date" required
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label for="received_amount" class="block text-sm font-medium text-gray-700 mb-1">Received Amount</label>
+                    <div class="relative rounded-md shadow-sm">
+                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                            <span class="text-gray-500 sm:text-sm">$</span>
+                        </div>
+                        <input type="number" step="0.01" min="0.01" id="received_amount" name="received_amount" required disabled
+                               class="block w-full rounded-md border-gray-300 pl-7 p-3 focus:border-blue-500 focus:ring-blue-500 sm:text-sm bg-gray-100 disabled:cursor-not-allowed transition" 
+                               placeholder="0.00">
+                    </div>
+                    <p id="amount-hint" class="mt-1 text-xs text-red-500 hidden">Amount cannot exceed Payable Due.</p>
+                </div>
+
+                <div class="pt-4">
+                    <button type="button" id="btn-pre-submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        Receive Payment
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <div id="confirmModal" class="fixed inset-0 z-50 hidden bg-gray-900 bg-opacity-75 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Confirm Payment</h3>
+            <p class="text-gray-500 text-sm mb-4">Please verify the details below before saving.</p>
+            
+            <div class="bg-gray-50 p-4 rounded-lg space-y-2 mb-6 text-sm">
+                <div class="flex justify-between"><span class="text-gray-600">Invoice No:</span> <span class="font-medium text-gray-900" id="conf_invoice"></span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Date:</span> <span class="font-medium text-gray-900" id="conf_date"></span></div>
+                <div class="flex justify-between border-t pt-2 mt-2"><span class="text-gray-800 font-bold">Received Amount:</span> <span class="font-bold text-green-600 text-lg" id="conf_amount"></span></div>
+                <div class="flex justify-between pt-1"><span class="text-gray-600">Resulting Status:</span> <span class="font-medium" id="conf_status"></span></div>
+            </div>
+
+            <div class="flex space-x-3">
+                <button id="btn-cancel" class="flex-1 bg-white border border-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button id="btn-confirm" class="flex-1 bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700">Confirm & Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // 1. Initialize Select2 (Searchable Dropdown)
+            $('#invoice_id').select2({
+                placeholder: "Search for an invoice...",
+                allowClear: true,
+                width: '100%'
+            });
+
+            // Set default date to today
+            document.getElementById('payment_date').valueAsDate = new Date();
+
+            let currentDue = 0;
+            let currentTotal = 0;
+            let currentInvoiceNo = '';
+
+            // 2. Fetch Invoice Details on Selection
+            $('#invoice_id').on('change', function() {
+                const invoiceId = $(this).val();
+                const amountInput = $('#received_amount');
+                const submitBtn = $('#btn-pre-submit');
+
+                if (invoiceId) {
+                    $.ajax({
+                        url: 'receive_payment.php',
+                        type: 'GET',
+                        data: { action: 'get_invoice_details', invoice_id: invoiceId },
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                // Update Logic Variables
+                                currentDue = parseFloat(response.due_amount);
+                                currentTotal = parseFloat(response.total_amount);
+                                currentInvoiceNo = response.invoice_no;
+
+                                // Update Display UI
+                                $('#disp_total').text(currentTotal.toFixed(2));
+                                $('#disp_paid').text(parseFloat(response.paid_so_far).toFixed(2));
+                                $('#disp_due').text(currentDue.toFixed(2));
+                                $('#invoice-details').removeClass('hidden');
+
+                                // Enable Input
+                                amountInput.prop('disabled', false).removeClass('bg-gray-100').val('').focus();
+                                amountInput.attr('max', currentDue);
+                                submitBtn.prop('disabled', true); // Disable until amount entered
+                            }
+                        }
+                    });
+                } else {
+                    $('#invoice-details').addClass('hidden');
+                    amountInput.prop('disabled', true).addClass('bg-gray-100').val('');
+                    submitBtn.prop('disabled', true);
+                }
+            });
+
+            // 3. Amount Validation Logic
+            $('#received_amount').on('input', function() {
+                const val = parseFloat($(this).val());
+                const hint = $('#amount-hint');
+                const btn = $('#btn-pre-submit');
+
+                if (isNaN(val) || val <= 0) {
+                    btn.prop('disabled', true);
+                    hint.addClass('hidden');
+                } else if (val > currentDue) {
+                    btn.prop('disabled', true);
+                    hint.removeClass('hidden'); // Show error
+                } else {
+                    btn.prop('disabled', false); // Valid
+                    hint.addClass('hidden');
+                }
+            });
+
+            // 4. Modal Logic
+            const modal = $('#confirmModal');
+            const form = $('#paymentForm');
+
+            $('#btn-pre-submit').click(function() {
+                const amount = parseFloat($('#received_amount').val());
+                const date = $('#payment_date').val();
+
+                // Determine Status Text for Preview
+                let statusText = "Partial Payment";
+                let statusClass = "text-yellow-600";
+                
+                // Allow small floating point error margin
+                if (Math.abs(amount - currentDue) < 0.01) {
+                    statusText = "Fully Paid";
+                    statusClass = "text-green-600";
+                }
+
+                // Populate Modal
+                $('#conf_invoice').text(currentInvoiceNo);
+                $('#conf_date').text(date);
+                $('#conf_amount').text(amount.toFixed(2));
+                $('#conf_status').text(statusText).attr('class', 'font-bold ' + statusClass);
+
+                modal.removeClass('hidden');
+            });
+
+            $('#btn-cancel').click(function() {
+                modal.addClass('hidden');
+            });
+
+            $('#btn-confirm').click(function() {
+                // Submit the actual form
+                form.submit();
+            });
+        });
+    </script>
+</body>
+</html>
