@@ -1,10 +1,7 @@
 <?php
-// Start the session and check if the user is logged in
-session_start();
-if (!isset($_SESSION["user_id"])) {
-    header("Location: login.php");
-    exit();
-}
+require_once 'session_guard.php';
+
+$current_user_id = $_SESSION['user_id'];
 
 // Include the database connection
 require_once 'connection.php';
