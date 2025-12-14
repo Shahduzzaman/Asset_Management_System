@@ -1,5 +1,8 @@
 <?php
-session_start();
+require_once 'session_guard.php';
+
+$user_id = (int)$_SESSION['user_id'];
+
 require_once 'connection.php'; // expects $conn (mysqli)
 
 // Initialize variables to avoid undefined variable warnings
@@ -7,23 +10,6 @@ $message = '';
 $messageType = '';
 $error_message = '';
 $success_message = '';
-
-// Session idle timeout handling
-$idleTimeout = 1800;
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $idleTimeout)) {
-    session_unset();
-    session_destroy();
-    header("Location: index.php?reason=idle");
-    exit();
-}
-$_SESSION['last_activity'] = time();
-
-if (!isset($_SESSION["user_id"])) {
-    header("Location: index.php");
-    exit();
-}
-
-$user_id = (int)$_SESSION['user_id'];
 
 function log_error_msg($msg) {
     error_log($msg);
