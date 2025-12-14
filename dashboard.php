@@ -408,7 +408,7 @@ if ($res = $conn->query($catSql)) {
       </a>
 
       <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="Purchased_Return_List.php">
-          <span class="link-text text-xs font-semibold">Purchase Return List</span>
+          <span class="link-text text-xs">Purchase Return List</span>
       </a>
 
       <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="returns.php">
