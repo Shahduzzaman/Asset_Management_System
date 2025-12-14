@@ -114,10 +114,6 @@ $conn->close();
 <body class="bg-gray-100 min-h-screen">
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold text-gray-800">Manage Branches</h1>
-        </div>
-
         <!-- Search Bar -->
         <div class="mb-6">
             <input type="text" id="search-box" placeholder="Search branches by name, address, email, or phone..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
