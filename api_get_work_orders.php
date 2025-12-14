@@ -1,25 +1,10 @@
 <?php
-session_start();
+require_once 'session_guard.php';
+
 require_once 'connection.php'; // Your database connection file
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Session idle timeout check
-$idleTimeout = 1800;
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $idleTimeout)) {
-    session_unset();
-    session_destroy();
-    http_response_code(401);
-    echo json_encode(['error' => 'Session timed out.']);
-    exit();
-}
-$_SESSION['last_activity'] = time();
-
-if (!isset($_SESSION["user_id"])) {
-    http_response_code(401);
-    echo json_encode(['error' => 'User not logged in.']);
-    exit();
-}
 
 if ((!isset($_GET['client_head_id']) || $_GET['client_head_id'] === '') ) {
     http_response_code(400);
