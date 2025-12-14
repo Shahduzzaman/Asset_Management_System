@@ -1,11 +1,9 @@
 <?php
-session_start();
-require_once 'connection.php';
+require_once 'session_guard.php';
 
-// Security Check
-if (!isset($_SESSION["user_id"])) {
-    die("Access Denied");
-}
+$current_user_id = $_SESSION['user_id'];
+
+require_once 'connection.php';
 
 if (!isset($_GET['id'])) {
     die("Invalid Invoice ID");
