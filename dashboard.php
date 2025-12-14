@@ -423,6 +423,9 @@ if ($res = $conn->query($catSql)) {
           <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="manage_users.php">
               <span class="link-text text-xs">Manage Users</span>
           </a>
+          <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="manage_branch.php">
+              <span class="link-text text-xs">Manage Branch</span>
+          </a>
       <?php endif; ?>
 
       <a href="logout.php" class="block px-3 py-2 rounded-md hover:bg-red-50 text-gray-700">
