@@ -1,25 +1,31 @@
 <?php
-session_start();
+// Start session only if not already active
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-$reason = $_GET['reason'] ?? '';
+// Completely clear session data
+$_SESSION = [];
 
-$_SESSION = array();
-
+// Destroy session cookie (important)
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
+    setcookie(
+        session_name(),
+        '',
+        time() - 42000,
+        $params['path'],
+        $params['domain'],
+        $params['secure'],
+        $params['httponly']
     );
 }
 
+// Destroy the session
 session_destroy();
 
-if ($reason === 'idle') {
-    header("Location: index.php?reason=idle");
-} else {
-    header("Location: index.php");
-}
+// Always force top-level redirect (iframe-safe)
+echo '<script>window.top.location.href = "index.php?reason=logout";</script>';
 exit;
 ?>
 
