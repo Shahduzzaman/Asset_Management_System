@@ -399,6 +399,10 @@ if ($res = $conn->query($catSql)) {
           <span class="link-text text-xs">View Clients</span>
       </a>
 
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="work_order_list.php">
+          <span class="link-text text-xs">View Work Order</span>
+      </a>
+
       <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="ledger.php">
           <span class="link-text text-xs">Vendor Ledger</span>
       </a>
