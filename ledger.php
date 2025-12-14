@@ -1,17 +1,7 @@
 <?php
-session_start();
+require_once 'session_guard.php';
 
-// --- START: SESSION & SECURITY CHECKS ---
-$idleTimeout = 1800; // 30 minutes
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $idleTimeout)) {
-    session_unset(); session_destroy(); header("Location: index.php?reason=idle"); exit();
-}
-$_SESSION['last_activity'] = time();
-if (!isset($_SESSION["user_id"])) {
-    header("Location: index.php"); exit();
-}
-$current_user_name = $_SESSION['user_name'] ?? 'User';
-// --- END: SESSION & SECURITY CHECKS ---
+$current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
 
