@@ -1,14 +1,9 @@
 <?php
 // dashboard.php
-session_start();
+require_once 'session_guard.php';
+$current_user_id = $_SESSION['user_id'];
 
 require_once "connection.php"; // expects $conn being a mysqli object
-
-// Authorization
-if (!isset($_SESSION["user_id"])) {
-    header("Location: index.php");
-    exit();
-}
 
 // Error message handling
 $errorMessage = '';
