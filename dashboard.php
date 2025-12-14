@@ -278,7 +278,7 @@ if ($res = $conn->query($catSql)) {
     .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
     #appFrame { width:100%; height:100%; border:0; display:block; }
     .sidebar-collapsed { width: 5rem !important; }
-    .sidebar-expanded { width: 16rem !important; }
+    .sidebar-expanded { width: 13rem !important; }
     .topbar-content { display:flex; align-items:center; height:var(--topbar-h); }
     /* smaller default link text for consistency */
     .sidebar .link-text, .sidebar #sidebarLabel { font-size: 0.80rem; } /* ~ text-xs */
@@ -333,7 +333,7 @@ if ($res = $conn->query($catSql)) {
   <!-- Sidebar -->
   <aside id="sidebar"
          class="sidebar-transition sidebar-expanded sidebar p-3 sidebar-scroll bg-white border-r"
-         style="width:16rem; min-width:5rem; max-width:22rem; overflow:auto;">
+         style="width:13rem; min-width:5rem; max-width:22rem; overflow:auto;">
     <div class="flex items-center justify-between mb-3 px-1">
       <div class="flex items-center gap-2">
         <span id="sidebarLabel" class="text-sm font-semibold text-gray-700">Navigation</span>
