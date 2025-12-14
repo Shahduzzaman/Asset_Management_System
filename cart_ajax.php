@@ -1,18 +1,14 @@
 <?php
-session_start();
+require_once 'session_guard.php';
+
+$current_user_id = $_SESSION['user_id'];
+
 // --- JSON header & error reporting (errors logged, not shown to user) ---
 header('Content-Type: application/json; charset=utf-8');
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 
 require_once 'connection.php'; // expects $conn (mysqli)
-
-// Authentication check
-if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['status' => 'error', 'message' => 'Not authenticated. Please log in.']);
-    exit;
-}
-$current_user_id = (int)$_SESSION['user_id'];
 
 // Router
 $action = $_GET['action'] ?? null;
