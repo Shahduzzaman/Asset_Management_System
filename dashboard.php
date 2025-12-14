@@ -423,6 +423,9 @@ if ($res = $conn->query($catSql)) {
           <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="manage_users.php">
               <span class="link-text text-xs">Manage Users</span>
           </a>
+          <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="add_branch.php">
+              <span class="link-text text-xs">Create Branch</span>
+          </a>
           <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="manage_branch.php">
               <span class="link-text text-xs">Manage Branch</span>
           </a>
