@@ -1,21 +1,8 @@
 <?php
-session_start();
+require_once 'session_guard.php';
+
 require_once 'connection.php';
 
-// --- Session & Security Checks (match your style) ---
-$idleTimeout = 1800;
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $idleTimeout)) {
-    session_unset();
-    session_destroy();
-    header("Location: index.php?reason=idle");
-    exit();
-}
-$_SESSION['last_activity'] = time();
-
-if (!isset($_SESSION["user_id"])) {
-    header("Location: index.php");
-    exit();
-}
 
 // --- Helper utilities -----------------------------------------------------
 function to_int($v) { return (int)$v; }
