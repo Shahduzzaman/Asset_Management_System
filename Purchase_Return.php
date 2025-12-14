@@ -1,27 +1,14 @@
 <?php
-session_start();
 require_once 'connection.php'; // Expects $conn (mysqli)
+
+require_once 'session_guard.php';
+
+$user_id = (int)$_SESSION['user_id'];
 
 // --- Helper: Log Errors ---
 function log_error_msg($msg) {
     error_log("[PurchaseReturn] " . $msg);
 }
-
-// --- 1. Session & Auth Checks ---
-$idleTimeout = 1800;
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $idleTimeout)) {
-    session_unset();
-    session_destroy();
-    header("Location: index.php?reason=idle");
-    exit();
-}
-$_SESSION['last_activity'] = time();
-
-if (!isset($_SESSION["user_id"])) {
-    header("Location: index.php");
-    exit();
-}
-$user_id = (int)$_SESSION['user_id'];
 
 // Initialize messages
 $message = '';
