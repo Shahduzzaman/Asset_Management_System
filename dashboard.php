@@ -389,6 +389,10 @@ if ($res = $conn->query($catSql)) {
           <span class="link-text text-xs">Receive Payment</span>
       </a>
 
+      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="paid_invoice_list.php">
+          <span class="link-text text-xs">Billing Status</span>
+      </a>
+      
       <hr class="my-2">
 
       <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="product_list.php">
