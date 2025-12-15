@@ -2,7 +2,7 @@
 require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
-
+$current_user_name = $_SESSION['user_name'];
 require_once 'connection.php';
 
 // --- Initial Data Fetch for Filters ---
