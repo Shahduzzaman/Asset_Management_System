@@ -206,6 +206,26 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
 
         // Initial Load
         fetchInvoices();
+        function printFromUrl(url) {
+            // Remove old iframe if exists to ensure clean load
+            const oldFrame = document.getElementById('hidden_print_frame');
+            if (oldFrame) oldFrame.remove();
+
+            // Create hidden iframe
+            const iframe = document.createElement('iframe');
+            iframe.id = 'hidden_print_frame';
+            iframe.style.position = 'fixed';
+            iframe.style.left = '-9999px';
+            iframe.style.top = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = 'none';
+            
+            // Set URL (The receipt page auto-prints on load)
+            iframe.src = url;
+            
+            document.body.appendChild(iframe);
+        }
     </script>
 </body>
 </html>
