@@ -51,9 +51,10 @@ $sql_master = "SELECT
                 u.user_name as Created_By_User,
                 ch.Company_Name,
                 ch.Address as Head_Address,
-                ch.Contact_Number,
+                ch.Contact_Number as Head_Phone,
                 cb.Branch_Name,
                 cb.Address as Branch_Address,
+                cb.Contact_Number1 as Branch_Phone,
                 wo.Order_No as WO_No,
                 wo.Order_Date as WO_Date
               FROM invoice inv
@@ -126,13 +127,41 @@ while ($row = $result_items->fetch_assoc()) {
 }
 
 /* ---------------------------------------
-   Client Name Logic
+   Smart Client Info Logic
 ----------------------------------------- */
+// Determine Name
 $client_name = $invoice['Company_Name'] ?? '';
-if (!empty($invoice['Branch_Name']) && $invoice['Branch_Name'] != $invoice['Company_Name']) {
-    $client_name .= ' - ' . $invoice['Branch_Name'];
+$branch_name = $invoice['Branch_Name'] ?? '';
+$display_name = 'Walk-in Client';
+
+if (!empty($client_name)) {
+    $display_name = $client_name;
+    if (!empty($branch_name) && $branch_name != $client_name) {
+        $display_name .= " - " . $branch_name;
+    }
+} elseif (!empty($branch_name)) {
+    $display_name = $branch_name;
 }
 
+// Determine Address (Prioritize Branch)
+$display_addr = '';
+if (!empty($invoice['Branch_Address'])) {
+    $display_addr = $invoice['Branch_Address'];
+} elseif (!empty($invoice['Head_Address'])) {
+    $display_addr = $invoice['Head_Address'];
+}
+
+// Determine Phone (Prioritize Branch)
+$display_phone = '';
+if (!empty($invoice['Branch_Phone'])) {
+    $display_phone = $invoice['Branch_Phone'];
+} elseif (!empty($invoice['Head_Phone'])) {
+    $display_phone = $invoice['Head_Phone'];
+}
+
+/* ---------------------------------------
+   Totals Calculation
+----------------------------------------- */
 $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
 $grand = $invoice['grand_total'];
 $amount_words = numberToWordsBD(floor($grand)) . " Taka Only";
@@ -346,17 +375,14 @@ body{
         <div class="bill-to">
             <div class="bill-label">Bill To:</div>
             <div class="bill-box">
-                <div class="client-name"><?php echo htmlspecialchars($client_name ?: 'Walk-in Client'); ?></div>
-                <?php 
-                $addr = '';
-                if (!empty($invoice['Branch_Address'])) $addr = $invoice['Branch_Address'];
-                else if (!empty($invoice['Head_Address'])) $addr = $invoice['Head_Address'];
-                if (!empty($addr)):
-                ?>
-                    <div class="client-addr"><?php echo nl2br(htmlspecialchars($addr)); ?></div>
+                <div class="client-name"><?php echo htmlspecialchars($display_name); ?></div>
+                
+                <?php if (!empty(trim($display_addr))): ?>
+                    <div class="client-addr"><?php echo nl2br(htmlspecialchars(trim($display_addr))); ?></div>
                 <?php endif; ?>
-                <?php if (!empty($invoice['Contact_Number'])): ?>
-                    <div class="client-contact"><strong>Tel:</strong> <?php echo htmlspecialchars($invoice['Contact_Number']); ?></div>
+                
+                <?php if (!empty(trim($display_phone))): ?>
+                    <div class="client-contact"><strong>Tel:</strong> <?php echo htmlspecialchars(trim($display_phone)); ?></div>
                 <?php endif; ?>
             </div>
         </div>
