@@ -38,8 +38,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
         $selected_vendor_details = $stmt_vn->get_result()->fetch_assoc();
         $stmt_vn->close();
 
-        $start_date_display = $start_date;
-        $end_date_display   = $end_date;
+        $start_date_display = date('d-m-Y', strtotime($start_date));
+        $end_date_display   = date('d-m-Y', strtotime($end_date));
 
         // =====================================================
         // OPENING BALANCE CALCULATION (Before Start Date)
@@ -130,7 +130,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
         // =====================================================
 
         array_unshift($transactions, [
-            'transaction_date'  => date('d-m-Y', strtotime($start_date . ' -1 day')),
+            'transaction_date'  => date('Y-m-d', strtotime($start_date . ' -1 day')),
             'description'       => 'Opening Balance',
             'invoice_number'    => '',
             'debit'             => '',
@@ -210,19 +210,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             /* 1. Reset Page & Margins */
             @page {
                 size: A4;
-                margin: 5mm 5mm 5mm 5mm; /* Very minimal margins */
+                margin: 5mm 5mm 5mm 5mm;
             }
 
             body {
                 margin: 0;
                 padding: 0;
                 background-color: #fff !important;
-                font-family: 'Helvetica', 'Arial', sans-serif; /* Clean font for print */
-                font-size: 10pt; /* Compact font size */
+                font-family: 'Helvetica', 'Arial', sans-serif;
+                font-size: 10pt;
                 color: #000;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
-                counter-reset: page; /* Initialize page counter */
+                counter-reset: page;
             }
 
             /* 2. Hide Screen Elements */
@@ -232,7 +232,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 width: 0;
             }
 
-            /* 3. Main Container Reset */
+            /* 3. Helper to Show Hidden Screen Elements in Print */
+            .hidden.print-only {
+                display: block !important;
+            }
+
+            /* 4. Main Container Reset */
             .container, .max-w-7xl, .mx-auto, .p-4, .p-6, .p-8 {
                 width: 100% !important;
                 max-width: 100% !important;
@@ -244,7 +249,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 border-radius: 0 !important;
             }
 
-            /* 4. Show Print Section */
+            /* 5. Show Print Section */
             #print-section {
                 display: block !important;
                 width: 100%;
@@ -256,24 +261,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 visibility: visible;
             }
 
-            /* 5. Header Section - MODIFIED for Address & Layout */
+            /* 6. Header Section */
             #print-header {
                 display: flex !important;
-                justify-content: space-between !important; /* Pushes Logo left, Address right */
+                justify-content: space-between !important;
                 align-items: center;
                 border-bottom: 2px solid #000;
                 padding-bottom: 5px;
                 margin-bottom: 5px;
             }
             
-            /* Logo & Name Wrapper (Left Side) */
             .header-left-group {
                 display: flex !important;
                 align-items: center;
             }
 
             #print-logo {
-                height: 50px; /* Adjusted size */
+                height: 50px;
                 width: auto;
                 margin-right: 15px;
                 display: block !important;
@@ -281,7 +285,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             .header-info h1 { font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase; }
             .header-info p { font-size: 9pt; margin: 0; }
 
-            /* Company Address (Right Side) */
             .company-address {
                 text-align: right;
                 font-size: 8pt;
@@ -289,54 +292,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             }
             .company-address p { margin: 0; }
 
-            /* 6. Vendor Info Block - ADDED !important */
+            /* 7. Vendor Info Block */
             .vendor-info-box {
                 border: 1px solid #000;
                 padding: 5px;
                 margin-bottom: 10px;
                 font-size: 9pt;
-                display: flex !important; /* Forces display even if 'hidden' class is present */
+                display: flex !important;
                 justify-content: space-between;
             }
             .vendor-info-col { width: 48%; }
 
-            /* 7. TABLE STYLING - THE CORE FIX */
+            /* 8. TABLE STYLING */
             table {
                 width: 100% !important;
                 border-collapse: collapse !important;
-                table-layout: fixed; /* Fix column widths */
+                table-layout: fixed;
             }
 
             th, td {
-                border: 1px solid #000 !important; /* Sharp black borders */
-                padding: 3px 4px !important; /* COMPACT PADDING - No extra gap */
-                line-height: 1.1 !important; /* Tighter line height */
+                border: 1px solid #000 !important;
+                padding: 3px 4px !important;
+                line-height: 1.1 !important;
                 vertical-align: top;
-                color: #000 !important; /* Force black text */
-                font-size: 8pt !important; /* STRICTLY ENFORCE 8PT FONT */
-            }
-
-            th {
-                background-color: #f0f0f0 !important; /* Light gray header background */
-                font-weight: bold;
-                text-transform: uppercase;
-                text-align: center;
+                color: #000 !important;
                 font-size: 8pt !important;
             }
 
-            /* Specific Column Alignment */
-            .col-date { width: 10%; text-align: center; white-space: nowrap; }
-            .col-desc { width: 42%; text-align: left; }
+            th {
+                background-color: #f0f0f0 !important;
+                font-weight: bold;
+                text-transform: uppercase;
+                text-align: center;
+            }
+
+            /* COLUMN WIDTHS MODIFIED HERE */
+            .col-date { width: 9%; text-align: center; white-space: nowrap; }
+            .col-desc { width: 39%; text-align: left; } /* Decreased from 42% */
             .col-inv  { width: 12%; text-align: center; white-space: nowrap; }
             .col-amt  { width: 12%; text-align: right; font-family: 'Courier New', monospace; }
+            .col-bal  { width: 16%; text-align: right; font-family: 'Courier New', monospace; } /* Added: 12% + 10% taken from Desc */
 
-            /* 8. Summary Box - ADDED !important */
+            /* 9. Summary Box */
             .summary-box {
                 margin-top: 10px;
                 border: 1px solid #000;
                 padding: 5px;
                 page-break-inside: avoid;
-                display: block !important; /* CRITICAL: Forces this block to show in print */
+                display: block !important;
             }
             .summary-row {
                 display: flex;
@@ -346,7 +349,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 margin-bottom: 2px;
             }
 
-            /* 9. Footer - UPDATED for Center Date & Right Page Number */
+            /* 10. Footer */
             #print-footer {
                 position: fixed;
                 bottom: 0;
@@ -360,38 +363,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 align-items: center;
             }
 
-            /* Flex columns for equal spacing to ensure center is truly center */
-            .pf-left {
-                text-align: left;
-                flex: 1;
-            }
-            .pf-center {
-                text-align: center;
-                flex: 1;
-            }
-            .pf-right {
-                text-align: right;
-                flex: 1;
-            }
+            .pf-left { text-align: left; flex: 1; }
+            .pf-center { text-align: center; flex: 1; }
+            .pf-right { text-align: right; flex: 1; }
 
-            /* CSS Page Counter logic */
             .page-number:after {
                 counter-increment: page;
-                /* content combines current page counter and Total pages variable (calculated via JS) */
                 content: "Page " counter(page) " of " var(--total-pages, "..");
             }
             
-            /* Hide Screen-Only Classes in Print */
             .shadow-md, .bg-white, .rounded-xl, .bg-gray-50, .bg-gray-100 {
                 background: none !important;
                 box-shadow: none !important;
                 border-radius: 0 !important;
             }
-            .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900 {
+            /* Normalized Colors in Print */
+            .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900, .text-green-600, .text-red-600, .text-red-700 {
                 color: #000 !important;
-            }
-            .text-green-600, .text-red-600, .text-red-700 {
-                color: #000 !important; /* Remove colors for pure B&W print, or keep if color printer available */
             }
         }
     </style>
@@ -463,9 +451,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                  </div>
             </div>
 
-            <div class="vendor-info-box hidden print-only"> <div class="vendor-info-col">
+            <div class="vendor-info-box print-only"> 
+                <div class="vendor-info-col">
                     <strong>Vendor:</strong> <?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?><br>
-                    <strong>Contact Person:</strong> <?php echo htmlspecialchars($selected_vendor_details['contact_person'] ?? ''); ?><br>
+                    <strong>Contact:</strong> <?php echo htmlspecialchars($selected_vendor_details['contact_person'] ?? ''); ?><br>
                     <strong>Phone:</strong> <?php echo htmlspecialchars($selected_vendor_details['phone'] ?? ''); ?>
                 </div>
                 <div class="vendor-info-col" style="text-align: right;">
@@ -480,12 +469,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                     <table class="min-w-full print:w-full">
                         <thead class="bg-gray-50 border-b print:bg-gray-200">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase col-date">Date</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase col-desc">Description</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase col-inv">Invoice #</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase col-amt">Debit<br><span style="font-size:0.8em; font-weight:normal;">(Payment)</span></th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase col-amt">Credit<br><span style="font-size:0.8em; font-weight:normal;">(Purchase)</span></th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase col-amt">Balance</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase col-date">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase col-desc">Description</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase col-inv">Invoice #</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-900 uppercase col-amt">Debit<br><span style="font-size:0.8em; font-weight:normal;">(Payment)</span></th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-900 uppercase col-amt">Credit<br><span style="font-size:0.8em; font-weight:normal;">(Purchase)</span></th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-900 uppercase col-bal">Balance</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 print:divide-y-0">
@@ -494,16 +483,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                             <?php else: ?>
                                 <?php foreach ($transactions as $txn): ?>
                                 <tr>
-                                    <td class="px-6 py-4 text-sm text-gray-600 col-date"><?php echo htmlspecialchars($txn['transaction_date']); ?></td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 col-date"><?php echo date('d-m-Y', strtotime($txn['transaction_date'])); ?></td>
                                     <td class="px-6 py-4 text-sm font-medium text-gray-900 col-desc"><?php echo htmlspecialchars($txn['description']); ?></td>
-                                    <td class="px-6 py-4 text-sm text-gray-600 col-inv"><?php echo htmlspecialchars($txn['invoice_number'] ?? ''); ?></td>
-                                    <td class="px-6 py-4 text-sm text-right text-green-600 col-amt">
+                                    <td class="px-6 py-4 text-sm text-gray-900 col-inv"><?php echo htmlspecialchars($txn['invoice_number'] ?? ''); ?></td>
+                                    <td class="px-6 py-4 text-sm text-right text-gray-900 col-amt">
                                         <?php echo $txn['debit'] > 0 ? number_format($txn['debit'], 2) : '-'; ?>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-right text-red-600 col-amt">
+                                    <td class="px-6 py-4 text-sm text-right text-gray-900 col-amt">
                                         <?php echo $txn['credit'] > 0 ? number_format($txn['credit'], 2) : '-'; ?>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-right font-semibold <?php echo $txn['balance'] < 0 ? 'text-red-700' : 'text-gray-800'; ?> col-amt">
+                                    <td class="px-6 py-4 text-sm text-right font-semibold text-gray-900 col-bal">
                                         <?php echo number_format(abs($txn['balance']), 2) . ' ' . $txn['balance_indicator']; ?>
                                     </td>
                                 </tr>
@@ -581,10 +570,6 @@ document.addEventListener('DOMContentLoaded', () => {
      const footerTime = document.getElementById('print-datetime-footer');
      if(footerTime) footerTime.textContent = dateStr;
 
-     // --- CALCULATE TOTAL PAGES ESTIMATION FOR PRINT ---
-     // Standard browsers do not support "Total Pages" in CSS. This JS estimates it based on A4 height.
-     // A4 Height (297mm) at 96PPI is approx 1123px. Subtracting margins (~40px) = 1083px.
-     // We use a safe division to estimate the page count.
      if (document.getElementById('print-section')) {
          const contentHeight = document.body.scrollHeight;
          const a4HeightPx = 1123; 
