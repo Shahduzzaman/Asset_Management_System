@@ -191,6 +191,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
     <title>Vendor Ledger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
         body { font-family: 'Inter', sans-serif; }
 
@@ -254,14 +256,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 visibility: visible;
             }
 
-            /* 5. Header Section - ADDED !important */
+            /* 5. Header Section - MODIFIED for Address & Layout */
             #print-header {
                 display: flex !important;
+                justify-content: space-between !important; /* Pushes Logo left, Address right */
                 align-items: center;
                 border-bottom: 2px solid #000;
                 padding-bottom: 5px;
-                margin-bottom: 10px;
+                margin-bottom: 5px;
             }
+            
+            /* Logo & Name Wrapper (Left Side) */
+            .header-left-group {
+                display: flex !important;
+                align-items: center;
+            }
+
             #print-logo {
                 height: 50px; /* Adjusted size */
                 width: auto;
@@ -270,6 +280,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             }
             .header-info h1 { font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase; }
             .header-info p { font-size: 9pt; margin: 0; }
+
+            /* Company Address (Right Side) */
+            .company-address {
+                text-align: right;
+                font-size: 8pt;
+                line-height: 1.3;
+            }
+            .company-address p { margin: 0; }
 
             /* 6. Vendor Info Block - ADDED !important */
             .vendor-info-box {
@@ -415,11 +433,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
         
         <div id="print-section">
             
-            <div id="print-header" class="hidden print-only"> <img id="print-logo" src="images/logo.png" alt="Logo" style="display:block;">
-                <div class="header-info">
-                    <h1>Protection One (Pvt.) Ltd.</h1>
-                    <p>A Complete Security Solutions</p>
+            <div id="print-header" class="hidden print-only"> 
+                <div class="header-left-group">
+                    <img id="print-logo" src="images/logo.png" alt="Logo" style="display:block;">
+                    <div class="header-info">
+                        <h1>Protection One (Pvt.) Ltd.</h1>
+                        <p>A Complete Security Solutions</p>
+                    </div>
                 </div>
+
+                <div class="company-address">
+                    <p><strong>Head Office:</strong> House 48, Road 02, Block L,</p>
+                    <p>Banani, Dhaka-1213, Bangladesh</p>
+                    <p><i class="fas fa-envelope"></i> info@protectionone.com.bd</p>
+                    <p><i class="fas fa-phone-alt"></i> +880 1755-551912</p>
+                </div> 
+            </div>
+
+            <div class="hidden print-only" style="text-align: center; margin-bottom: 15px;">
+                <span style="border: 2px solid #000; padding: 5px 30px; font-weight: bold; font-size: 14pt; letter-spacing: 2px; display: inline-block;">
+                    LEDGER
+                </span>
             </div>
 
             <div class="bg-white rounded-xl shadow-md overflow-hidden mb-4 no-print">
@@ -431,7 +465,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
 
             <div class="vendor-info-box hidden print-only"> <div class="vendor-info-col">
                     <strong>Vendor:</strong> <?php echo htmlspecialchars($selected_vendor_details['vendor_name'] ?? 'N/A'); ?><br>
-                    <strong>Contact:</strong> <?php echo htmlspecialchars($selected_vendor_details['contact_person'] ?? ''); ?><br>
+                    <strong>Contact Person:</strong> <?php echo htmlspecialchars($selected_vendor_details['contact_person'] ?? ''); ?><br>
                     <strong>Phone:</strong> <?php echo htmlspecialchars($selected_vendor_details['phone'] ?? ''); ?>
                 </div>
                 <div class="vendor-info-col" style="text-align: right;">
