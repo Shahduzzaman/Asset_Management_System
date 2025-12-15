@@ -278,7 +278,7 @@ if ($res = $conn->query($catSql)) {
     .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
     #appFrame { width:100%; height:100%; border:0; display:block; }
     .sidebar-collapsed { width: 5rem !important; }
-    .sidebar-expanded { width: 13rem !important; }
+    .sidebar-expanded { width: 14rem !important; }
     .topbar-content { display:flex; align-items:center; height:var(--topbar-h); }
     /* smaller default link text for consistency */
     .sidebar .link-text, .sidebar #sidebarLabel { font-size: 0.80rem; } /* ~ text-xs */
@@ -332,124 +332,158 @@ if ($res = $conn->query($catSql)) {
 
   <!-- Sidebar -->
   <aside id="sidebar"
-         class="sidebar-transition sidebar-expanded sidebar p-3 sidebar-scroll bg-white border-r"
-         style="width:13rem; min-width:5rem; max-width:22rem; overflow:auto;">
-    <div class="flex items-center justify-between mb-3 px-1">
+         class="sidebar-transition sidebar-expanded sidebar p-3 sidebar-scroll bg-white border-r flex flex-col"
+         style="width:14rem; min-width:5rem; max-width:22rem; overflow:hidden;">
+    
+    <div class="flex items-center justify-between mb-4 px-1 shrink-0">
       <div class="flex items-center gap-2">
-        <span id="sidebarLabel" class="text-sm font-semibold text-gray-700">Navigation</span>
+        <span id="sidebarLabel" class="text-sm font-bold text-indigo-700 tracking-wide uppercase">Menu</span>
       </div>
-      <div class="hidden md:block text-xs text-gray-500">Role: <?php echo $user_role === 1 ? 'Admin' : 'User'; ?></div>
+      <div class="hidden md:block text-[10px] font-mono text-gray-400 border border-gray-200 rounded px-1">
+        <?php echo $user_role === 1 ? 'ADMIN' : 'USER'; ?>
+      </div>
     </div>
 
-    <nav id="sidebarNav" class="space-y-1">
-      <!-- text-only links with reduced font size -->
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="stock_monitor.php">
-          <span class="link-text text-xs">Stock Monitor</span>
-      </a>
+    <nav id="sidebarNav" class="space-y-1 flex-1 overflow-y-auto">
       
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="product_setup.php">
-          <span class="link-text text-xs">Product Setup</span>
-      </a>
+      <div class="nav-group">
+        <button onclick="toggleSubmenu('submenu-setup', this)" class="w-full flex items-center justify-between px-3 py-2 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 rounded-md transition-colors group">
+            <div class="flex items-center gap-3">
+                <svg class="w-5 h-5 text-gray-400 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <span class="link-text text-xs font-semibold">General Setup</span>
+            </div>
+            <svg class="w-3 h-3 text-gray-400 transition-transform duration-200 link-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        
+        <div id="submenu-setup" class="hidden pl-2 space-y-1 mt-1 border-l-2 border-gray-100 ml-3">
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600 hover:text-indigo-700" data-target="stock_monitor.php">
+                <span class="link-text text-xs">Stock Monitor</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600 hover:text-indigo-700" data-target="product_setup.php">
+                <span class="link-text text-xs">Product Setup</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600 hover:text-indigo-700" data-target="add_vendor.php">
+                <span class="link-text text-xs">Add Vendor</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600 hover:text-indigo-700" data-target="Add_Client.php">
+                <span class="link-text text-xs">Add Client</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600 hover:text-indigo-700" data-target="add_work_order.php">
+                <span class="link-text text-xs">Add Work Order</span>
+            </a>
+        </div>
+      </div>
 
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="add_vendor.php">
-          <span class="link-text text-xs">Add Vendor</span>
-      </a>
+      <div class="nav-group pt-1">
+        <button onclick="toggleSubmenu('submenu-trans', this)" class="w-full flex items-center justify-between px-3 py-2 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 rounded-md transition-colors group">
+            <div class="flex items-center gap-3">
+                <svg class="w-5 h-5 text-gray-400 group-hover:text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+                <span class="link-text text-xs font-semibold">Operations</span>
+            </div>
+            <svg class="w-3 h-3 text-gray-400 transition-transform duration-200 link-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
 
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="Add_Client.php">
-          <span class="link-text text-xs">Add Client</span>
-      </a>
+        <div id="submenu-trans" class="hidden pl-2 space-y-1 mt-1 border-l-2 border-gray-100 ml-3">
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="purchase_product.php">
+                <span class="link-text text-xs">Purchased Product</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="add_to_cart.php">
+                <span class="link-text text-xs">Sold Product</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="Purchase_Return.php">
+                <span class="link-text text-xs">Purchase Return</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="Sales_Return.php">
+                <span class="link-text text-xs">Sales Return</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="make_payment.php">
+                <span class="link-text text-xs">Make Payment</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="receive_payment.php">
+                <span class="link-text text-xs">Receive Payment</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="paid_invoice_list.php">
+                <span class="link-text text-xs">Billing Status</span>
+            </a>
+        </div>
+      </div>
 
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-indigo-50 text-gray-700" data-target="add_work_order.php">
-          <span class="link-text text-xs">Add Work Order</span>
-      </a>
+      <div class="nav-group pt-1">
+        <button onclick="toggleSubmenu('submenu-reports', this)" class="w-full flex items-center justify-between px-3 py-2 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 rounded-md transition-colors group">
+            <div class="flex items-center gap-3">
+                <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <span class="link-text text-xs font-semibold">Reports & Views</span>
+            </div>
+            <svg class="w-3 h-3 text-gray-400 transition-transform duration-200 link-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
 
-      <hr class="my-2">
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="purchase_product.php">
-          <span class="link-text text-xs">Purchased Product</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="add_to_cart.php">
-          <span class="link-text text-xs">Sold Product</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="Purchase_Return.php">
-          <span class="link-text text-xs">Purchase Return</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-blue-50 text-gray-700" data-target="Sales_Return.php">
-          <span class="link-text text-xs">Sales Return</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="make_payment.php">
-          <span class="link-text text-xs">Make Payment</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="receive_payment.php">
-          <span class="link-text text-xs">Receive Payment</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-green-50 text-gray-700" data-target="paid_invoice_list.php">
-          <span class="link-text text-xs">Billing Status</span>
-      </a>
-      
-      <hr class="my-2">
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="product_list.php">
-          <span class="link-text text-xs">View Product</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="view_vendor.php">
-          <span class="link-text text-xs">View Vendors</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="view_client.php">
-          <span class="link-text text-xs">View Clients</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="work_order_list.php">
-          <span class="link-text text-xs">View Work Order</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-cyan-50 text-gray-700" data-target="ledger.php">
-          <span class="link-text text-xs">Vendor Ledger</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="invoice_list.php">
-          <span class="link-text text-xs">Invoice</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="money_receipt_list.php">
-          <span class="link-text text-xs">Money Receipt</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="Purchased_Return_List.php">
-          <span class="link-text text-xs">Purchase Return List</span>
-      </a>
-
-      <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-teal-50 text-gray-700" data-target="returns.php">
-          <span class="link-text text-xs">Sales Return List</span>
-      </a>
+        <div id="submenu-reports" class="hidden pl-2 space-y-1 mt-1 border-l-2 border-gray-100 ml-3">
+             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="product_list.php">
+                <span class="link-text text-xs">View Product</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="view_vendor.php">
+                <span class="link-text text-xs">View Vendors</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="view_client.php">
+                <span class="link-text text-xs">View Clients</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="work_order_list.php">
+                <span class="link-text text-xs">View Work Order</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="ledger.php">
+                <span class="link-text text-xs">Vendor Ledger</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="invoice_list.php">
+                <span class="link-text text-xs">Invoice</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="money_receipt_list.php">
+                <span class="link-text text-xs">Money Receipt</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="Purchased_Return_List.php">
+                <span class="link-text text-xs">Purchase Return List</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="returns.php">
+                <span class="link-text text-xs">Sales Return List</span>
+            </a>
+        </div>
+      </div>
 
       <?php if ($user_role === 1): ?>
-          <hr class="my-2">
-          <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="create_user.php">
-              <span class="link-text text-xs">Create User</span>
-          </a>
-          <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="manage_users.php">
-              <span class="link-text text-xs">Manage Users</span>
-          </a>
-          <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="add_branch.php">
-              <span class="link-text text-xs">Create Branch</span>
-          </a>
-          <a href="#" class="sidebar-link block px-3 py-2 rounded-md hover:bg-purple-50 text-gray-700" data-target="manage_branch.php">
-              <span class="link-text text-xs">Manage Branch</span>
-          </a>
-      <?php endif; ?>
+      <div class="nav-group pt-1">
+        <button onclick="toggleSubmenu('submenu-admin', this)" class="w-full flex items-center justify-between px-3 py-2 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 rounded-md transition-colors group">
+            <div class="flex items-center gap-3">
+                <svg class="w-5 h-5 text-gray-400 group-hover:text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                <span class="link-text text-xs font-semibold">Admin Panel</span>
+            </div>
+            <svg class="w-3 h-3 text-gray-400 transition-transform duration-200 link-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
 
-      <a href="logout.php" class="block px-3 py-2 rounded-md hover:bg-red-50 text-gray-700">
-          <span class="link-text text-xs">Logout</span>
-      </a>
+        <div id="submenu-admin" class="hidden pl-2 space-y-1 mt-1 border-l-2 border-gray-100 ml-3">
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="create_user.php">
+                <span class="link-text text-xs">Create User</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="manage_users.php">
+                <span class="link-text text-xs">Manage Users</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="add_branch.php">
+                <span class="link-text text-xs">Create Branch</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="manage_branch.php">
+                <span class="link-text text-xs">Manage Branch</span>
+            </a>
+        </div>
+      </div>
+      <?php endif; ?>
+      
+      <div class="pt-4 mt-2 border-t">
+          <a href="logout.php" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-red-50 text-gray-700 hover:text-red-700">
+             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+             <span class="link-text text-xs">Logout</span>
+          </a>
+      </div>
+
     </nav>
   </aside>
 
@@ -561,6 +595,20 @@ if ($res = $conn->query($catSql)) {
     const globalToggleIcon = document.getElementById('globalSidebarToggleIcon');
     const STORAGE_KEY = 'ams_sidebar_expanded';
 
+    // 1. New function to toggle submenus
+    window.toggleSubmenu = function(menuId, btn) {
+        const menu = document.getElementById(menuId);
+        const icon = btn.querySelector('svg:last-child'); // The chevron
+        
+        if (menu.classList.contains('hidden')) {
+            menu.classList.remove('hidden');
+            icon.style.transform = 'rotate(180deg)';
+        } else {
+            menu.classList.add('hidden');
+            icon.style.transform = 'rotate(0deg)';
+        }
+    };
+
     const mobileSidebar = document.getElementById('mobileSidebar');
     const mobileSidebarClose = document.getElementById('mobileSidebarClose');
 
@@ -570,14 +618,18 @@ if ($res = $conn->query($catSql)) {
         if (expanded) {
             sidebar.classList.remove('sidebar-collapsed');
             sidebar.classList.add('sidebar-expanded');
+            // Show all link-text elements
             document.querySelectorAll('.link-text').forEach(el => el.classList.remove('hidden'));
             document.getElementById('sidebarLabel').classList.remove('hidden');
             globalToggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>';
         } else {
             sidebar.classList.add('sidebar-collapsed');
             sidebar.classList.remove('sidebar-expanded');
+            // Hide all link-text elements
             document.querySelectorAll('.link-text').forEach(el => el.classList.add('hidden'));
             document.getElementById('sidebarLabel').classList.add('hidden');
+            // Note: When collapsed, the submenus are still functionally there, 
+            // but the text is hidden. The icons remain to click.
             globalToggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6l12 6-12 6"/>';
         }
     }
@@ -615,10 +667,24 @@ if ($res = $conn->query($catSql)) {
 
     function setActiveLink(target) {
         links.forEach(a => {
+            // Remove active styles from all
+            a.classList.remove('bg-indigo-50', 'text-indigo-700', 'font-semibold');
+            
+            // Check if this is the active link
             if (a.dataset && a.dataset.target === target) {
-                a.classList.add('bg-indigo-50', 'font-semibold');
-            } else {
-                a.classList.remove('bg-indigo-50', 'font-semibold');
+                a.classList.add('bg-indigo-50', 'text-indigo-700', 'font-semibold');
+                
+                // NEW: Auto-expand the parent submenu
+                const parentGroup = a.closest('div[id^="submenu-"]');
+                if (parentGroup && parentGroup.classList.contains('hidden')) {
+                    parentGroup.classList.remove('hidden');
+                    // Find the toggle button associated with this menu (it's the previous element usually)
+                    const triggerBtn = parentGroup.previousElementSibling;
+                    if(triggerBtn) {
+                         const icon = triggerBtn.querySelector('svg:last-child');
+                         if(icon) icon.style.transform = 'rotate(180deg)';
+                    }
+                }
             }
         });
     }
@@ -656,7 +722,6 @@ if ($res = $conn->query($catSql)) {
         const match = Array.from(links).find(l => l.dataset && l.dataset.target === page);
         if (match) {
             loadIntoFrame(null, page);
-            setActiveLink(page);
         }
     }
 })();
