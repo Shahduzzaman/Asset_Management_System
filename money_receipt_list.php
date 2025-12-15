@@ -167,16 +167,6 @@ function recalculateInvoiceStatus($conn, $invoice_id) {
 <body class="p-6">
 
     <div class="max-w-7xl mx-auto">
-        <div class="flex flex-col md:flex-row justify-between items-center mb-6">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-800">Money Receipt List</h1>
-                <p class="text-sm text-gray-500">View and manage all received payments</p>
-            </div>
-            <div class="mt-4 md:mt-0 flex gap-3">
-                <a href="index.php" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition"><i class="fas fa-arrow-left"></i> Dashboard</a>
-                <a href="receive_payment.php" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow"><i class="fas fa-plus"></i> New Receipt</a>
-            </div>
-        </div>
 
         <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
             <div class="relative">
