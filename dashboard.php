@@ -356,9 +356,6 @@ if ($res = $conn->query($catSql)) {
         </button>
         
         <div id="submenu-setup" class="hidden pl-2 space-y-1 mt-1 border-l-2 border-gray-100 ml-3">
-            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600 hover:text-indigo-700" data-target="stock_monitor.php">
-                <span class="link-text text-xs">Stock Monitor</span>
-            </a>
             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600 hover:text-indigo-700" data-target="product_setup.php">
                 <span class="link-text text-xs">Product Setup</span>
             </a>
@@ -404,9 +401,6 @@ if ($res = $conn->query($catSql)) {
             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="receive_payment.php">
                 <span class="link-text text-xs">Receive Payment</span>
             </a>
-            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="paid_invoice_list.php">
-                <span class="link-text text-xs">Billing Status</span>
-            </a>
         </div>
       </div>
 
@@ -420,7 +414,10 @@ if ($res = $conn->query($catSql)) {
         </button>
 
         <div id="submenu-reports" class="hidden pl-2 space-y-1 mt-1 border-l-2 border-gray-100 ml-3">
-             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="product_list.php">
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600 hover:text-indigo-700" data-target="stock_monitor.php">
+                <span class="link-text text-xs">Stock Monitor</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="product_list.php">
                 <span class="link-text text-xs">View Product</span>
             </a>
             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="view_vendor.php">
@@ -440,6 +437,9 @@ if ($res = $conn->query($catSql)) {
             </a>
             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="money_receipt_list.php">
                 <span class="link-text text-xs">Money Receipt</span>
+            </a>
+            <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="paid_invoice_list.php">
+                <span class="link-text text-xs">Billing Status</span>
             </a>
             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="Purchased_Return_List.php">
                 <span class="link-text text-xs">Purchase Return List</span>
