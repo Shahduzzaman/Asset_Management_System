@@ -464,7 +464,6 @@ body{
         <ul>
             <li>Non-warranty products are not returnable if damaged or partially damaged.</li>
             <li>Warranty void if serial number sticker is removed or damaged.</li>
-            <li>Goods once sold cannot be returned.</li>
         </ul>
     </div>
 
