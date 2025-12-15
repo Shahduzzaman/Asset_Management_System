@@ -243,32 +243,19 @@ $invoices = $conn->query($sql_list);
     <?php if ($auto_print_id): ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Create iframe dynamically with JS
             var iframe = document.createElement('iframe');
             iframe.src = 'print_money_receipt.php?id=<?php echo $auto_print_id; ?>&print=true';
             
-            // Essential styles to make it hidden but "renderable" by browsers
             iframe.style.position = 'fixed';
             iframe.style.left = '-9999px';
             iframe.style.top = '0';
-            iframe.style.width = '1px';  // Must have size!
-            iframe.style.height = '1px'; // Must have size!
+            iframe.style.width = '1px';
+            iframe.style.height = '1px';
             iframe.style.border = 'none';
             iframe.id = 'auto_print_frame';
             
             document.body.appendChild(iframe);
-
-            // Wait for it to load, then trigger print
-            // Note: print_money_receipt.php also has an onload print, this is a backup
-            iframe.onload = function() {
-                setTimeout(function() {
-                   // Ensure focus is on the frame for the print dialog
-                   try {
-                       iframe.contentWindow.focus();
-                       iframe.contentWindow.print();
-                   } catch(e) { console.error("Auto-print error:", e); }
-                }, 1000); // 1-second delay to ensure rendering
-            };
+            // Removed iframe.onload -> print() logic because print_money_receipt.php handles it.
         });
     </script>
     <?php endif; ?>
