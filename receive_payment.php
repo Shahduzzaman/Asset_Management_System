@@ -6,7 +6,6 @@ require_once 'connection.php';
 // --- START: AJAX HANDLER (Fetch Invoice Details) ---
 if (isset($_GET['action']) && $_GET['action'] === 'get_invoice_details') {
     header('Content-Type: application/json');
-    
     $invoice_id = isset($_GET['invoice_id']) ? (int)$_GET['invoice_id'] : 0;
     
     if ($invoice_id > 0) {
@@ -43,24 +42,20 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_invoice_details') {
     }
     exit();
 }
-// --- END: AJAX HANDLER ---
 
 // --- START: FORM SUBMISSION HANDLER ---
 $successMessage = '';
 $errorMessage = '';
+$auto_print_id = null; // Variable to trigger auto-print
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $invoice_id = (int)$_POST['invoice_id'];
     $payment_date = $_POST['payment_date'];
     $payment_method = $_POST['payment_method'];
-    
-    // Logic: If Cash, Transaction Number is NULL, otherwise take the input
     $transaction_number = ($payment_method === 'Cash') ? null : trim($_POST['transaction_number']);
-    
     $received_amount = (float)$_POST['received_amount'];
 
     if ($invoice_id && $received_amount > 0) {
-        // Validation for Non-Cash methods
         if ($payment_method !== 'Cash' && empty($transaction_number)) {
             $errorMessage = "Transaction Number is required for " . $payment_method;
         } else {
@@ -79,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } else {
                 $conn->begin_transaction();
                 try {
-                    // 1. GENERATE MONEY RECEIPT NUMBER
+                    // 1. GENERATE MONEY RECEIPT NO
                     $sql_mr = "SELECT money_receipt_no FROM payments ORDER BY payment_id DESC LIMIT 1 FOR UPDATE";
                     $res_mr = $conn->query($sql_mr);
                     $row_mr = $res_mr->fetch_assoc();
@@ -93,12 +88,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                     $new_mr_no = 'P1MR-' . str_pad($next_num, 6, '0', STR_PAD_LEFT);
 
-                    // 2. INSERT PAYMENT (Updated with Method & Transaction No)
+                    // 2. INSERT PAYMENT
                     $sql_insert = "INSERT INTO payments (invoice_id_fk, payment_date, payment_method, transaction_number, amount, money_receipt_no, created_by) 
                                    VALUES (?, ?, ?, ?, ?, ?, ?)";
                     $stmt_ins = $conn->prepare($sql_insert);
                     $stmt_ins->bind_param("isssdsi", $invoice_id, $payment_date, $payment_method, $transaction_number, $received_amount, $new_mr_no, $current_user_id);
                     $stmt_ins->execute();
+                    $new_payment_id = $conn->insert_id;
 
                     // 3. UPDATE STATUS
                     $new_total_paid = $check_data['paid_so_far'] + $received_amount;
@@ -115,7 +111,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmt_upd->execute();
 
                     $conn->commit();
-                    $successMessage = "Payment Received! <br>Receipt No: <strong>" . $new_mr_no . "</strong>";
+                    
+                    // --- SUCCESS ---
+                    $successMessage = "Payment Received successfully! <br>Receipt No: <strong>" . $new_mr_no . "</strong><br><span class='text-sm text-gray-500'>Printing receipt automatically...</span>";
+                    
+                    // Set this ID to trigger the hidden iframe below
+                    $auto_print_id = $new_payment_id;
+                    
                 } catch (Exception $e) {
                     $conn->rollback();
                     $errorMessage = "Transaction failed: " . $e->getMessage();
@@ -145,6 +147,7 @@ $invoices = $conn->query($sql_list);
     <title>Receive Payment</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style> 
@@ -199,8 +202,7 @@ $invoices = $conn->query($sql_list);
                     </div>
                     <div>
                         <label for="transaction_number" class="block text-sm font-medium text-gray-700 mb-1">Transaction Number</label>
-                        <input type="text" id="transaction_number" name="transaction_number" disabled placeholder="N/A for Cash"
-                               class="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 focus:ring-blue-500 transition">
+                        <input type="text" id="transaction_number" name="transaction_number" disabled placeholder="N/A for Cash" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 focus:ring-blue-500 transition">
                     </div>
                 </div>
 
@@ -208,16 +210,13 @@ $invoices = $conn->query($sql_list);
                     <label for="received_amount" class="block text-sm font-medium text-gray-700 mb-1">Received Amount</label>
                     <div class="relative rounded-md shadow-sm">
                         <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><span class="text-gray-500 sm:text-sm">$</span></div>
-                        <input type="number" step="0.01" min="0.01" id="received_amount" name="received_amount" required disabled
-                               class="block w-full rounded-md border-gray-300 pl-7 p-3 focus:border-blue-500 bg-gray-100" placeholder="0.00">
+                        <input type="number" step="0.01" min="0.01" id="received_amount" name="received_amount" required disabled class="block w-full rounded-md border-gray-300 pl-7 p-3 focus:border-blue-500 bg-gray-100">
                     </div>
                     <p id="amount-hint" class="mt-1 text-xs text-red-500 hidden">Amount cannot exceed Payable Due.</p>
                 </div>
 
                 <div class="pt-4">
-                    <button type="button" id="btn-pre-submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        Receive Payment
-                    </button>
+                    <button type="button" id="btn-pre-submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>Receive Payment</button>
                 </div>
             </form>
         </div>
@@ -227,7 +226,6 @@ $invoices = $conn->query($sql_list);
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <h3 class="text-xl font-bold text-gray-900 mb-2">Confirm Payment</h3>
             <p class="text-gray-500 text-sm mb-4">Please verify the details below.</p>
-            
             <div class="bg-gray-50 p-4 rounded-lg space-y-2 mb-6 text-sm">
                 <div class="flex justify-between"><span class="text-gray-600">Invoice No:</span> <span class="font-medium text-gray-900" id="conf_invoice"></span></div>
                 <div class="flex justify-between"><span class="text-gray-600">Date:</span> <span class="font-medium text-gray-900" id="conf_date"></span></div>
@@ -235,7 +233,6 @@ $invoices = $conn->query($sql_list);
                 <div class="flex justify-between hidden" id="conf_trans_row"><span class="text-gray-600">Trans No:</span> <span class="font-medium text-gray-900" id="conf_trans"></span></div>
                 <div class="flex justify-between border-t pt-2 mt-2"><span class="text-gray-800 font-bold">Amount:</span> <span class="font-bold text-green-600 text-lg" id="conf_amount"></span></div>
             </div>
-
             <div class="flex space-x-3">
                 <button id="btn-cancel" class="flex-1 bg-white border border-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50">Cancel</button>
                 <button id="btn-confirm" class="flex-1 bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700">Confirm & Save</button>
@@ -243,35 +240,37 @@ $invoices = $conn->query($sql_list);
         </div>
     </div>
 
+    <?php if ($auto_print_id): ?>
+    <iframe src="print_money_receipt.php?id=<?php echo $auto_print_id; ?>&print=true" style="position:fixed; left:-9999px; top:0; width:0; height:0; border:none;"></iframe>
+    <?php endif; ?>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         $(document).ready(function() {
             $('#invoice_id').select2({ placeholder: "Search for an invoice...", allowClear: true, width: '100%' });
             document.getElementById('payment_date').valueAsDate = new Date();
+            let currentDue = 0, currentInvoiceNo = '';
 
-            let currentDue = 0;
-            let currentInvoiceNo = '';
-
-            // Toggle Transaction ID based on Payment Method
             $('#payment_method').on('change', function() {
                 const method = $(this).val();
                 const transInput = $('#transaction_number');
                 if (method === 'Cash') {
                     transInput.val('').prop('disabled', true).addClass('bg-gray-100').attr('placeholder', 'N/A for Cash');
                 } else {
-                    transInput.prop('disabled', false).removeClass('bg-gray-100').attr('placeholder', 'Enter Transaction No');
+                    let ph = 'Enter Transaction No';
+                    if (method === 'Cheque') ph = 'Enter Cheque No';
+                    else if (method === 'Bank Transfer') ph = 'Enter Transfer Ref No';
+                    else if (method === 'Bank Deposit') ph = 'Enter Deposit Slip No';
+                    transInput.prop('disabled', false).removeClass('bg-gray-100').attr('placeholder', ph);
                 }
             });
 
-            // Invoice Selection Logic
             $('#invoice_id').on('change', function() {
                 const invoiceId = $(this).val();
                 if (invoiceId) {
                     $.ajax({
-                        url: 'receive_payment.php',
-                        type: 'GET',
-                        data: { action: 'get_invoice_details', invoice_id: invoiceId },
+                        url: 'receive_payment.php', type: 'GET', data: { action: 'get_invoice_details', invoice_id: invoiceId },
                         success: function(response) {
                             if (response.status === 'success') {
                                 currentDue = parseFloat(response.due_amount);
@@ -292,42 +291,26 @@ $invoices = $conn->query($sql_list);
                 }
             });
 
-            // Validate Amount
             $('#received_amount').on('input', function() {
                 const val = parseFloat($(this).val());
-                const btn = $('#btn-pre-submit');
                 if (isNaN(val) || val <= 0 || val > (currentDue + 0.1)) {
-                    btn.prop('disabled', true);
+                    $('#btn-pre-submit').prop('disabled', true);
                     if (val > (currentDue + 0.1)) $('#amount-hint').removeClass('hidden');
                 } else {
-                    btn.prop('disabled', false);
+                    $('#btn-pre-submit').prop('disabled', false);
                     $('#amount-hint').addClass('hidden');
                 }
             });
 
-            // Modal Logic
             $('#btn-pre-submit').click(function() {
                 const method = $('#payment_method').val();
                 const trans = $('#transaction_number').val();
-                
-                // Validate Trans No for non-cash
-                if(method !== 'Cash' && !trans.trim()) {
-                    alert('Please enter a Transaction Number for ' + method);
-                    return;
-                }
-
+                if(method !== 'Cash' && !trans.trim()) { alert('Please enter a Transaction Number for ' + method); return; }
                 $('#conf_invoice').text(currentInvoiceNo);
                 $('#conf_date').text($('#payment_date').val());
                 $('#conf_amount').text(parseFloat($('#received_amount').val()).toFixed(2));
                 $('#conf_method').text(method);
-                
-                if (method !== 'Cash') {
-                    $('#conf_trans_row').removeClass('hidden');
-                    $('#conf_trans').text(trans);
-                } else {
-                    $('#conf_trans_row').addClass('hidden');
-                }
-                
+                if (method !== 'Cash') { $('#conf_trans_row').removeClass('hidden'); $('#conf_trans').text(trans); } else { $('#conf_trans_row').addClass('hidden'); }
                 $('#confirmModal').removeClass('hidden');
             });
 
