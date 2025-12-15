@@ -122,7 +122,7 @@ $total_paid = 0;
                         <th class="px-4 py-2">Receipt No</th>
                         <th class="px-4 py-2">Method</th>
                         <th class="px-4 py-2 text-right">Amount</th>
-                    </tr>
+                        <th class="px-4 py-2 text-center">Action</th> </tr>
                 </thead>
                 <tbody>
                     <?php while($pay = $res_pay->fetch_assoc()): 
@@ -136,6 +136,13 @@ $total_paid = 0;
                             <?php if($pay['transaction_number']) echo '<br><span class="text-xs text-gray-400">#'.$pay['transaction_number'].'</span>'; ?>
                         </td>
                         <td class="px-4 py-2 text-right text-green-600 font-medium"><?php echo number_format($pay['amount'], 2); ?></td>
+                        <td class="px-4 py-2 text-center">
+                            <button onclick="printFromUrl('print_money_receipt.php?id=<?php echo $pay['payment_id']; ?>&print=true')" 
+                                    class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                Print
+                            </button>
+                        </td>
                     </tr>
                     <?php endwhile; ?>
                 </tbody>
@@ -162,3 +169,4 @@ $total_paid = 0;
         </div>
     </div>
 </div>
+
