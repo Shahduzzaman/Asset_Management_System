@@ -55,7 +55,7 @@ if (!empty($data['Branch_Name']) && !empty($data['Company_Name'])) {
 }
 $client_address = !empty($data['Branch_Addr']) ? $data['Branch_Addr'] : $data['Head_Addr'];
 
-// Calculate Due (At the time of this payment logic is complex, so we show current due)
+// Calculate Due
 $sql_due = "SELECT SUM(amount) as total_paid FROM payments WHERE invoice_id_fk = ?";
 $stmt_due = $conn->prepare($sql_due);
 $stmt_due->bind_param("i", $data['invoice_id_fk']);
@@ -76,10 +76,9 @@ $print_time = date("d-M-Y h:i A");
 <title><?php echo htmlspecialchars($data['money_receipt_no']); ?></title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
-    /* Same CSS styles as your Invoice */
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background-color:#555;color:#111;line-height:1.4;}
-    .page-container{width:210mm;min-height:148mm; /* Half A4 usually for receipts */ background:white;margin:20px auto;padding:10mm;position:relative;box-shadow:0 0 10px rgba(0,0,0,0.3);}
+    .page-container{width:210mm;min-height:148mm; background:white;margin:20px auto;padding:10mm;position:relative;box-shadow:0 0 10px rgba(0,0,0,0.3);}
     
     .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:20px;}
     .company-identity{display:flex;align-items:center;gap:15px;}
@@ -144,8 +143,9 @@ $print_time = date("d-M-Y h:i A");
         </div>
         <div class="company-address">
             <p><strong>Head Office:</strong> House 48, Road 02, Block L,</p>
-            <p>Banani, Dhaka-1213</p>
-            <p>+880 1755-551912</p>
+            <p>Banani, Dhaka-1213, Bangladesh</p>
+            <p><i class="fas fa-envelope"></i> info@protectionone.com.bd</p>
+            <p><i class="fas fa-phone-alt"></i> +880 1755-551912</p>
         </div>
     </div>
 
@@ -223,13 +223,21 @@ $print_time = date("d-M-Y h:i A");
     </div>
 
     <div class="footer-meta">
-        Printed On: <?php echo $print_time; ?> | System Generated Receipt
+        Printed On: <?php echo $print_time; ?>
     </div>
 </div>
 
 <?php if($is_print): ?>
 <script>
-    window.onload = function() { setTimeout(function(){ window.print(); }, 500); }
+    window.onload = function() {
+        // FORCE the document title to be the Receipt Number right before printing
+        // This ensures the "Save as PDF" filename is correct even inside iframes
+        document.title = "<?php echo htmlspecialchars($data['money_receipt_no']); ?>";
+        
+        setTimeout(function(){ 
+            window.print(); 
+        }, 500); 
+    }
 </script>
 <?php endif; ?>
 
