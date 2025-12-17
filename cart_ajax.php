@@ -143,6 +143,61 @@ try {
             send_json(['status' => 'success', 'rows' => $rows]);
             break;
 
+        // --- NEW: Get Work Orders by Client (Head or Branch) ---
+        case 'get_client_work_orders':
+            $client_mix = $_GET['client_mix'] ?? '';
+            $orders = [];
+
+            if ($client_mix) {
+                $head_id = 0;
+                $branch_id = 0;
+
+                if (strpos($client_mix, 'head_') === 0) {
+                    // CASE 1: Client Head Selected
+                    $head_id = (int)str_replace('head_', '', $client_mix);
+                    
+                    $sql = "SELECT work_order_id, Order_No, Order_Date 
+                            FROM work_order 
+                            WHERE client_head_id_fk = ? 
+                              AND is_deleted = 0 
+                            ORDER BY work_order_id DESC";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bind_param("i", $head_id);
+
+                } else {
+                    // CASE 2: Client Branch Selected
+                    $branch_id = (int)$client_mix;
+                    
+                    // 2a. Find the parent Head ID for this branch
+                    $stmt_h = $conn->prepare("SELECT client_head_id_fk FROM client_branch WHERE client_branch_id = ?");
+                    $stmt_h->bind_param("i", $branch_id);
+                    $stmt_h->execute();
+                    $res_h = $stmt_h->get_result();
+                    if ($r_h = $res_h->fetch_assoc()) {
+                        $head_id = (int)$r_h['client_head_id_fk'];
+                    }
+                    $stmt_h->close();
+
+                    // 2b. Fetch WOs for THIS Branch OR the Parent Head
+                    $sql = "SELECT work_order_id, Order_No, Order_Date 
+                            FROM work_order 
+                            WHERE (client_branch_id_fk = ? OR client_head_id_fk = ?) 
+                              AND is_deleted = 0 
+                            ORDER BY work_order_id DESC";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bind_param("ii", $branch_id, $head_id);
+                }
+
+                if (isset($stmt) && $stmt) {
+                    $stmt->execute();
+                    $orders = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                    $stmt->close();
+                }
+            }
+            send_json(['status' => 'success', 'orders' => $orders]);
+            break;
+
+
         // --- add to cart (serial or bulk) ---
         case 'add_to_cart':
             if ($method !== 'POST') send_json(['status' => 'error', 'message' => 'Invalid request method']);
