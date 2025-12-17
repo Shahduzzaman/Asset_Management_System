@@ -1,12 +1,16 @@
 <?php
+ob_start(); // Fix: Prevents "Headers already sent" error during redirects
 require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
+// Fix: Disable strict mode for compatibility with all update queries
+$conn->query("SET sql_mode=''");
 
 // --- START: ADMIN ROLE CHECK ---
 $user_role = 0;
+// Fix: Table name must be lowercase 'users'
 $sql_role_check = "SELECT role FROM users WHERE user_id = ?";
 $stmt_role_check = $conn->prepare($sql_role_check);
 $stmt_role_check->bind_param("i", $current_user_id);
@@ -31,10 +35,10 @@ if (isset($_GET['action'])) {
     // Action: Get details for a single user
     if ($_GET['action'] === 'get_user_details' && isset($_GET['id'])) {
         $user_id_to_edit = intval($_GET['id']);
-        // *** MODIFIED: Joined Branch table to get branch_name ***
+        // Fix: Changed 'Branch' to lowercase 'branch'
         $sql = "SELECT u.user_id, u.user_name, u.email, u.phone, u.role, u.status, u.branch_id_fk, b.Name as branch_name 
                 FROM users u
-                LEFT JOIN Branch b ON u.branch_id_fk = b.branch_id
+                LEFT JOIN branch b ON u.branch_id_fk = b.branch_id
                 WHERE u.user_id = ?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $user_id_to_edit);
@@ -51,28 +55,21 @@ if (isset($_GET['action'])) {
     if ($_GET['action'] === 'update_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         $user_id_to_update = intval($data['user_id']);
-        // --- SUPER ADMIN PROTECTION ---
-        if ($user_id_to_update == 1) { // Replace 1 with Super Admin ID
+        if ($user_id_to_update == 1) { 
              echo json_encode(['status' => 'error', 'message' => 'Access Denied: You cannot modify the Super Admin account.']);
              exit();
         }
-        // ------------------------------
         $email = trim($data['email']);
-        // *** NEW: Get branch_id_fk, allow NULL ***
         $branch_id_fk = !empty($data['branch_id_fk']) ? intval($data['branch_id_fk']) : null;
 
-        // Basic Server-side email validation
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $response['message'] = 'Invalid email format provided.';
         }
-        // Reinstate check: Prevent admin from disabling or changing role of themselves
         elseif ($user_id_to_update === $current_user_id && ($data['status'] == 1 || $data['role'] == 0)) {
              $response['message'] = 'Error: An Admin cannot disable their own account or change their own role to User.';
         } else {
-            // *** MODIFIED: Added branch_id_fk = ? ***
             $sql = "UPDATE users SET user_name=?, email=?, phone=?, role=?, status=?, branch_id_fk=?, is_updated=TRUE WHERE user_id=?";
             $stmt = $conn->prepare($sql);
-            // *** MODIFIED: Bind param string from "sssiii" to "sssiiii" ***
             $stmt->bind_param("sssiiii", $data['user_name'], $email, $data['phone'], $data['role'], $data['status'], $branch_id_fk, $user_id_to_update);
             try {
                 if ($stmt->execute()) {
@@ -81,8 +78,7 @@ if (isset($_GET['action'])) {
                     $response['message'] = 'Database update error: ' . $stmt->error;
                 }
             } catch (mysqli_sql_exception $e) {
-                 // Catch potential duplicate email errors
-                if ($e->getCode() == 1062) { // 1062 is MySQL code for duplicate entry
+                if ($e->getCode() == 1062) { 
                      $response['message'] = 'Error: This email address is already in use by another account.';
                 } else {
                     $response['message'] = 'Database update error: ' . $e->getMessage();
@@ -95,7 +91,7 @@ if (isset($_GET['action'])) {
     if ($_GET['action'] === 'reset_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         $user_id_to_reset = intval($data['user_id']);
-        if ($user_id_to_reset == 1) { // Replace 1 with Super Admin ID
+        if ($user_id_to_reset == 1) { 
              echo json_encode(['status' => 'error', 'message' => 'Access Denied: You cannot reset the Super Admin password.']);
              exit();
         }
@@ -123,16 +119,16 @@ if (isset($_GET['action'])) {
 
 // --- Part 2: Fetch initial data for page load ---
 header('Content-Type: text/html');
-// Fetch Users
+// Fix: Lowercase table names
 $users_sql = "SELECT u.user_id, u.user_name, u.email, u.phone, u.role, u.status, b.Name as branch_name 
               FROM users u
-              LEFT JOIN Branch b ON u.branch_id_fk = b.branch_id
+              LEFT JOIN branch b ON u.branch_id_fk = b.branch_id
               WHERE u.is_deleted = FALSE
               ORDER BY u.user_name";
 $users = $conn->query($users_sql)->fetch_all(MYSQLI_ASSOC);
 
-// *** NEW: Fetch all branches for the edit dropdown ***
-$branches_result = $conn->query("SELECT branch_id, Name FROM Branch WHERE is_deleted = FALSE ORDER BY Name");
+// Fix: Lowercase table name 'branch'
+$branches_result = $conn->query("SELECT branch_id, Name FROM branch WHERE is_deleted = FALSE ORDER BY Name");
 $branches = $branches_result ? $branches_result->fetch_all(MYSQLI_ASSOC) : [];
 
 $conn->close();
@@ -148,21 +144,18 @@ $conn->close();
     <style> 
         body { font-family: 'Inter', sans-serif; } 
         .modal { display: none; } .modal.is-open { display: flex; }
-        #users-table tbody tr { cursor: pointer; } /* Add cursor for row click */
+        #users-table tbody tr { cursor: pointer; } 
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
-        <!-- Search Bar -->
         <div class="mb-6">
             <input type="text" id="search-box" placeholder="Search users by name, email, or phone..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
 
-        <!-- Global Messages Area -->
         <div id="global-message" class="mb-6"></div>
 
-        <!-- User Table -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
             <div class="overflow-x-auto">
                 <table id="users-table" class="min-w-full">
@@ -185,7 +178,7 @@ $conn->close();
                             <td class="px-6 py-4 text-sm user-role"><?php echo $user['role'] == 1 ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Admin</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">User</span>'; ?></td>
                             <td class="px-6 py-4 text-sm user-status"><?php echo $user['status'] == 0 ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Disabled</span>'; ?></td>
                             <td class="px-6 py-4 text-center text-sm space-x-2">
-                                <?php if ($user['user_id'] != 1): // Replace 1 with Super Admin ID ?>
+                                <?php if ($user['user_id'] != 1): ?>
                                     <button class="action-btn edit-btn p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600" title="Edit User" data-id="<?php echo $user['user_id']; ?>">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
                                     </button>
@@ -201,8 +194,6 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Modals -->
-    <!-- View Details Modal -->
     <div id="view-details-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col">
             <div class="p-4 border-b flex justify-between items-center"><h2 id="view-title" class="text-xl font-semibold">User Details</h2><button class="close-modal-btn text-2xl font-bold">&times;</button></div>
@@ -219,15 +210,12 @@ $conn->close();
             </div>
             <div class="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
                 <input type="hidden" id="edit-user-id">
-                
                 <div><label class="block text-sm font-medium">Email Address</label><input type="email" id="edit-email" required class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
                 <div><label class="block text-sm font-medium">Full Name</label><input type="text" id="edit-user-name" required class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
                 <div><label class="block text-sm font-medium">Phone Number</label><input type="tel" id="edit-phone" class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
-                
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div><label class="block text-sm font-medium">Role</label><select id="edit-role" class="mt-1 w-full p-2 border border-gray-300 rounded-md"><option value="0">User</option><option value="1">Admin</option></select></div>
                     <div><label class="block text-sm font-medium">Status</label><select id="edit-status" class="mt-1 w-full p-2 border border-gray-300 rounded-md"><option value="0">Active</option><option value="1">Disabled</option></select></div>
-                    <!-- *** NEW: Branch Dropdown *** -->
                     <div>
                         <label class="block text-sm font-medium">Branch</label>
                         <select id="edit-branch-id" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
@@ -240,8 +228,6 @@ $conn->close();
                         </select>
                     </div>
                 </div>
-                
-                <!-- Password Reset Section -->
                 <div class="pt-4 border-t mt-4">
                     <h3 class="text-lg font-medium mb-2">Reset Password (Optional)</h3>
                      <div class="relative">
@@ -251,7 +237,6 @@ $conn->close();
                     </div>
                      <p id="password-reset-message" class="text-sm mt-2 text-green-600 h-4"></p>
                 </div>
-
             </div>
             <div class="p-4 bg-gray-50 border-t flex justify-end gap-4">
                 <button class="close-modal-btn bg-gray-300 px-4 py-2 rounded-lg">Cancel</button>
@@ -263,13 +248,12 @@ $conn->close();
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const editModal = document.getElementById('edit-user-modal');
-    const viewModal = document.getElementById('view-details-modal'); // Added View Modal
-    const allModals = [editModal, viewModal]; // Added View Modal
+    const viewModal = document.getElementById('view-details-modal');
+    const allModals = [editModal, viewModal];
     const searchBox = document.getElementById('search-box');
     const userTableBody = document.querySelector('#users-table tbody');
-    const currentUserId = <?php echo $current_user_id; ?>; // Get current user ID for JS checks
+    const currentUserId = <?php echo $current_user_id; ?>;
 
-    // --- Live Search Function ---
     const filterTable = () => {
         const searchTerm = searchBox.value.toLowerCase();
         userTableBody.querySelectorAll('tr').forEach(row => {
@@ -279,12 +263,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     searchBox.addEventListener('input', filterTable);
 
-    // --- Modal Controls ---
     const openModal = modalEl => modalEl.classList.add('is-open');
     const closeModal = modalEl => modalEl.classList.remove('is-open');
     allModals.forEach(modal => modal.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', () => closeModal(modal))));
 
-    // --- Show/Hide Password Toggle ---
     editModal.querySelectorAll('.toggle-password').forEach(button => {
         button.addEventListener('click', () => {
             const targetInput = document.getElementById(button.dataset.target);
@@ -296,7 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Display Global Messages ---
     function showGlobalMessage(message, isSuccess = true) {
         const messageDiv = document.getElementById('global-message');
         const alertClass = isSuccess ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700';
@@ -304,43 +285,34 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => messageDiv.innerHTML = '', 5000);
     }
 
-    // --- Function to open View Modal ---
     async function openViewModal(id) {
         try {
             const res = await fetch(`?action=get_user_details&id=${id}`);
             const result = await res.json();
             if (result.status !== 'success') throw new Error(result.message);
-            
             const data = result.data;
             const body = document.getElementById('view-modal-body');
             document.getElementById('view-title').textContent = `Details for: ${data.user_name}`;
-            
             body.innerHTML = `
                 <p><strong>Full Name:</strong> ${data.user_name}</p>
                 <p><strong>Email:</strong> ${data.email}</p>
                 <p><strong>Phone:</strong> ${data.phone || 'N/A'}</p>
                 <p><strong>Branch:</strong> ${data.branch_name || 'N/A'}</p>
                 <p><strong>Role:</strong> ${data.role == 1 ? 'Admin' : 'User'}</p>
-                <p><strong>Status:</strong> ${data.status == 0 ? 'Active' : 'Disabled'}</p>
-            `;
+                <p><strong>Status:</strong> ${data.status == 0 ? 'Active' : 'Disabled'}</p>`;
             openModal(viewModal);
         } catch (error) {
             showGlobalMessage('Error fetching details: ' + error.message, false);
         }
     }
 
-    // --- Table Event Delegation for Edit Button ---
     userTableBody.addEventListener('click', async e => {
         const row = e.target.closest('tr.user-row');
-        if (!row) return; // Exit if click was not on a row
-        
+        if (!row) return;
         const id = row.dataset.id;
         const button = e.target.closest('button.edit-btn');
-
         if (button) {
-            // --- EDIT BUTTON CLICKED ---
-            e.stopPropagation(); // Stop the row click from firing
-            
+            e.stopPropagation();
             try {
                 const res = await fetch(`?action=get_user_details&id=${id}`);
                 const result = await res.json();
@@ -353,40 +325,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('edit-phone').value = data.phone;
                     document.getElementById('edit-role').value = data.role;
                     document.getElementById('edit-status').value = data.status;
-                    // *** NEW: Set branch dropdown value ***
-                    document.getElementById('edit-branch-id').value = data.branch_id_fk || ''; // Use '' for NULL
-                    
+                    document.getElementById('edit-branch-id').value = data.branch_id_fk || '';
                     document.getElementById('edit-new-password').value = '';
                     document.getElementById('password-reset-message').textContent = '';
-
                     const isAdminEditingSelf = (userIdBeingEdited === currentUserId);
                     document.getElementById('edit-role').disabled = isAdminEditingSelf;
                     document.getElementById('edit-status').disabled = isAdminEditingSelf;
-
                     openModal(editModal);
-                } else {
-                    showGlobalMessage('Error fetching user details: ' + result.message, false);
-                }
-            } catch (error) {
-                showGlobalMessage('Network or server error fetching details.', false);
-                console.error(error);
-            }
-        } else {
-            // --- ROW CLICKED (not edit button) ---
-            openViewModal(id);
-        }
+                } else { showGlobalMessage('Error fetching user details: ' + result.message, false); }
+            } catch (error) { showGlobalMessage('Network error.', false); }
+        } else { openViewModal(id); }
     });
 
-    // --- Save Changes Button Listener ---
     document.getElementById('edit-save-btn').addEventListener('click', async () => {
         const userId = document.getElementById('edit-user-id').value;
         const newPassword = document.getElementById('edit-new-password').value;
-        const passwordResetMsgEl = document.getElementById('password-reset-message');
-        passwordResetMsgEl.textContent = '';
-        passwordResetMsgEl.classList.remove('text-red-600');
-        passwordResetMsgEl.classList.add('text-green-600');
-
-        // 1. Update Profile Details
         const updatedData = {
             user_id: userId,
             user_name: document.getElementById('edit-user-name').value,
@@ -394,69 +347,43 @@ document.addEventListener('DOMContentLoaded', () => {
             phone: document.getElementById('edit-phone').value,
             role: document.getElementById('edit-role').value,
             status: document.getElementById('edit-status').value,
-            // *** NEW: Get branch_id_fk value ***
-            branch_id_fk: document.getElementById('edit-branch-id').value || null // Send null if empty
+            branch_id_fk: document.getElementById('edit-branch-id').value || null
         };
         let updateSuccess = false;
         try {
             const resUpdate = await fetch('?action=update_user', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(updatedData) });
             const resultUpdate = await resUpdate.json();
             updateSuccess = resultUpdate.status === 'success';
-            if (!updateSuccess) {
-                alert('Error updating profile: ' + resultUpdate.message);
-            }
-        } catch (error) {
-             alert('Network or server error updating profile.'); console.error(error);
-        }
+            if (!updateSuccess) { alert('Error: ' + resultUpdate.message); }
+        } catch (error) { alert('Network error.'); }
 
-        // 2. Reset Password (if entered and profile update was successful)
         let passwordSuccess = true;
         if (newPassword && updateSuccess) {
             try {
                 const resPass = await fetch('?action=reset_password', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: userId, new_password: newPassword }) });
                 const resultPass = await resPass.json();
                 passwordSuccess = resultPass.status === 'success';
-                if(passwordSuccess) {
-                    passwordResetMsgEl.textContent = 'Password reset successfully!';
-                    document.getElementById('edit-new-password').value = ''; 
-                } else {
-                    passwordResetMsgEl.textContent = 'Password reset failed: ' + resultPass.message;
-                    passwordResetMsgEl.classList.remove('text-green-600');
-                    passwordResetMsgEl.classList.add('text-red-600');
-                }
-            } catch(error) {
-                 passwordSuccess = false;
-                 passwordResetMsgEl.textContent = 'Network or server error resetting password.';
-                 passwordResetMsgEl.classList.remove('text-green-600');
-                 passwordResetMsgEl.classList.add('text-red-600');
-                 console.error(error);
-            }
+            } catch(error) { passwordSuccess = false; }
         }
 
-        // 3. Close modal and show message IF BOTH operations were successful
         if(updateSuccess && passwordSuccess) {
             closeModal(editModal);
             showGlobalMessage('User updated successfully!');
-            
-            // Update table row dynamically
             const row = document.querySelector(`tr[data-id="${userId}"]`);
             if (row) {
                 const branchSelect = document.getElementById('edit-branch-id');
                 const selectedBranchName = branchSelect.value ? branchSelect.options[branchSelect.selectedIndex].text : 'N/A';
-                
                 row.querySelector('.user-name').textContent = updatedData.user_name;
                 row.querySelector('.user-email').textContent = updatedData.email;
                 row.querySelector('.user-phone').textContent = updatedData.phone;
-                row.querySelector('.user-branch').textContent = selectedBranchName; // Update branch name
+                row.querySelector('.user-branch').textContent = selectedBranchName;
                 row.querySelector('.user-role').innerHTML = updatedData.role == 1 ? '<span class="px-2 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Admin</span>' : '<span class="px-2 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">User</span>';
                 row.querySelector('.user-status').innerHTML = updatedData.status == 0 ? '<span class="px-2 text-xs font-semibold rounded-full bg-green-100 text-green-800">Active</span>' : '<span class="px-2 text-xs font-semibold rounded-full bg-red-100 text-red-800">Disabled</span>';
-                 
                 filterTable();
             }
         } 
     });
 });
 </script>
-
 </body>
 </html>
