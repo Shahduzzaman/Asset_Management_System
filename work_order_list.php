@@ -103,12 +103,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         <main class="w-full max-w-6xl mx-auto">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
-                <div>
-                    <h2 class="text-2xl font-bold text-gray-800">Work Orders</h2>
-                    <p class="text-gray-500 mt-1">Manage and view all work orders.</p>
-                </div>
-            </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                 <div class="relative">
