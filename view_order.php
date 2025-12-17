@@ -63,11 +63,11 @@ $result_items = $stmt_items->get_result();
 <div class="space-y-6">
     
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4">
-        <div>
-            <h3 class="text-xl font-bold text-gray-800">Order #<?php echo htmlspecialchars($order['Order_No']); ?></h3>
+        <div class="max-w-full sm:max-w-[70%]">
+            <h3 class="text-xl font-bold text-gray-800 break-all">Order #<?php echo htmlspecialchars($order['Order_No']); ?></h3>
             <p class="text-sm text-gray-500">Date: <?php echo date('M d, Y', strtotime($order['Order_Date'])); ?></p>
         </div>
-        <div class="mt-2 sm:mt-0 text-right">
+        <div class="mt-2 sm:mt-0 text-right shrink-0">
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                 Created by: <?php echo htmlspecialchars($order['created_by_name']); ?>
             </span>
