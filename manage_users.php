@@ -51,6 +51,12 @@ if (isset($_GET['action'])) {
     if ($_GET['action'] === 'update_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         $user_id_to_update = intval($data['user_id']);
+        // --- SUPER ADMIN PROTECTION ---
+        if ($user_id_to_update == 1) { // Replace 1 with Super Admin ID
+             echo json_encode(['status' => 'error', 'message' => 'Access Denied: You cannot modify the Super Admin account.']);
+             exit();
+        }
+        // ------------------------------
         $email = trim($data['email']);
         // *** NEW: Get branch_id_fk, allow NULL ***
         $branch_id_fk = !empty($data['branch_id_fk']) ? intval($data['branch_id_fk']) : null;
@@ -89,6 +95,10 @@ if (isset($_GET['action'])) {
     if ($_GET['action'] === 'reset_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         $user_id_to_reset = intval($data['user_id']);
+        if ($user_id_to_reset == 1) { // Replace 1 with Super Admin ID
+             echo json_encode(['status' => 'error', 'message' => 'Access Denied: You cannot reset the Super Admin password.']);
+             exit();
+        }
         $new_password = $data['new_password'];
         
         if (empty($new_password)) {
@@ -175,9 +185,13 @@ $conn->close();
                             <td class="px-6 py-4 text-sm user-role"><?php echo $user['role'] == 1 ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Admin</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">User</span>'; ?></td>
                             <td class="px-6 py-4 text-sm user-status"><?php echo $user['status'] == 0 ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Disabled</span>'; ?></td>
                             <td class="px-6 py-4 text-center text-sm space-x-2">
-                                <button class="action-btn edit-btn p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600" title="Edit User" data-id="<?php echo $user['user_id']; ?>">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
-                                </button>
+                                <?php if ($user['user_id'] != 1): // Replace 1 with Super Admin ID ?>
+                                    <button class="action-btn edit-btn p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600" title="Edit User" data-id="<?php echo $user['user_id']; ?>">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
+                                    </button>
+                                <?php else: ?>
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Protected</span>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
