@@ -1,5 +1,5 @@
 <?php
-// dashboard.php
+ob_start();
 require_once 'session_guard.php';
 $current_user_id = $_SESSION['user_id'];
 
