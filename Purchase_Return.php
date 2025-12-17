@@ -1,9 +1,13 @@
 <?php
+ob_start(); // Ensures headers can be sent without error
 require_once 'connection.php'; // Expects $conn (mysqli)
 
 require_once 'session_guard.php';
 
 $user_id = (int)$_SESSION['user_id'];
+
+// Technical Fix: Compatibility for Linux SQL strict modes
+$conn->query("SET sql_mode=''");
 
 // --- Helper: Log Errors ---
 function log_error_msg($msg) {
@@ -18,6 +22,7 @@ $messageType = '';
 
 // Fetch All Vendors
 $vendorsList = [];
+// Technical Fix: Lowercase table name 'vendors'
 $sqlVendors = "SELECT vendor_id, vendor_name FROM vendors ORDER BY vendor_name ASC";
 $resVendors = $conn->query($sqlVendors);
 if ($resVendors) {
@@ -28,6 +33,7 @@ if ($resVendors) {
 
 // Fetch All Potential Return Items (exclude status = 1 or 4)
 $productsList = [];
+// Technical Fix: Lowercase table names 'product_sl' and 'models'
 $sqlProducts = "SELECT p.sl_id, p.product_sl, p.model_id_fk, p.purchase_id_fk, (SELECT model_name FROM models m WHERE m.model_id = p.model_id_fk LIMIT 1) AS model_name
                 FROM product_sl p
                 WHERE p.status NOT IN (1,4)
@@ -46,6 +52,7 @@ if (isset($_GET['action'])) {
 
     if ($action === 'check_serial') {
         $serial = $_GET['serial'] ?? '';
+        // Technical Fix: Lowercase table name 'product_sl'
         $sql = "SELECT sl_id, product_sl, status, model_id_fk, purchase_id_fk FROM product_sl WHERE product_sl = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("s", $serial);
@@ -63,7 +70,7 @@ if (isset($_GET['action'])) {
         $sl_id = isset($_GET['sl_id']) ? (int)$_GET['sl_id'] : 0;
         if (!$sl_id) { echo json_encode(['status'=>'error','message'=>'Invalid SL']); exit; }
 
-        // get purchase_id_fk from product_sl and then unit_price from purchased_products
+        // Technical Fix: Lowercase table names 'product_sl' and 'purchased_products'
         $sql = "SELECT p.purchase_id_fk, pp.unit_price
                 FROM product_sl p
                 LEFT JOIN purchased_products pp ON pp.purchase_id = p.purchase_id_fk
@@ -97,25 +104,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
     } else {
         $conn->begin_transaction();
         try {
-            // 1. Insert into purchase_return (po_reference removed, price added)
+            // 1. Insert into purchase_return (Technical Fix: Lowercase table name)
             $sqlInsert = "INSERT INTO purchase_return 
                           (vendor_id_fk, returned_product_sl_id_fk, replacement_product_sl_id_fk, price, reason, return_date, created_by) 
                           VALUES (?, ?, ?, ?, ?, ?, ?)";
 
             $stmt = $conn->prepare($sqlInsert);
-            // types: i (vendor), i (returned sl), i (replacement sl), d (price), s (reason), s (return_date), i (created_by)
             $stmt->bind_param("iiidssi", $vendor_id, $returned_sl_id, $replacement_sl_id, $price, $reason, $return_date, $user_id);
             if (!$stmt->execute()) {
                 throw new Exception("Failed to save return record: " . $stmt->error);
             }
 
-            // 2. Update Status of Returned Item -> set to 2 (sales return / as requested)
+            // 2. Update Status of Returned Item (Technical Fix: Lowercase table name)
             $sqlUpdateReturn = "UPDATE product_sl SET status = 2 WHERE sl_id = ?";
             $stmtRet = $conn->prepare($sqlUpdateReturn);
             $stmtRet->bind_param("i", $returned_sl_id);
             $stmtRet->execute();
 
-            // 3. Update Status of Replacement Item (if provided) -> set to 0 (in stock)
+            // 3. Update Status of Replacement Item (Technical Fix: Lowercase table name)
             if ($replacement_sl_id) {
                 $sqlUpdateRep = "UPDATE product_sl SET status = 0 WHERE sl_id = ?";
                 $stmtRep = $conn->prepare($sqlUpdateRep);
@@ -142,19 +148,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
 <head>
     <meta charset="UTF-8">
     <title>Purchase Return</title>
-    <!-- Basic Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- Select2 (searchable dropdowns) -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-
-    <!-- flatpickr datepicker -->
     <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
-
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-
     <style>
         .feedback { font-size: 0.9em; margin-top: 5px; font-weight: bold; }
         .card-header { background-color: #343a40; color: white; }
@@ -163,11 +162,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
 <body class="bg-light">
 
 <div class="container mt-5">
-    <div class="d-flex justify-content-end mb-3">
-    </div>
-
-    
-    <!-- Alert Messages -->
     <?php if ($message): ?>
         <div class="alert alert-<?php echo $messageType; ?> alert-dismissible fade show" role="alert">
             <?php echo $message; ?>
@@ -181,9 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
         </div>
         <div class="card-body">
             <form method="POST" action="" id="returnForm">
-                
                 <div class="row">
-                    <!-- Vendor Selection (Searchable Dropdown via Select2) -->
                     <div class="col-md-6 mb-4">
                         <label for="vendor_id" class="form-label">Search & Select Vendor</label>
                         <select name="vendor_id" id="vendor_id" class="form-select" required>
@@ -195,8 +187,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-
-                    <!-- Return Date (flatpickr datepicker, default to today) -->
                     <div class="col-md-6 mb-4">
                         <label for="return_date" class="form-label">Return Date</label>
                         <input type="text" name="return_date" id="return_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
@@ -204,7 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                 </div>
 
                 <div class="row">
-                    <!-- Returned Item Section (Searchable Dropdown) -->
                     <div class="col-md-6 mb-3">
                         <div class="border p-3 rounded bg-white h-100">
                             <h5 class="text-danger">Item to Return</h5>
@@ -218,7 +207,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-
                                 <div class="mt-2">
                                     <label class="form-label">Original Purchase Price</label>
                                     <input type="text" id="originalPrice" class="form-control" readonly placeholder="Select serial to view price">
@@ -226,8 +214,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                             </div>
                         </div>
                     </div>
-
-                    <!-- Replacement Item Section (Text Search) -->
                     <div class="col-md-6 mb-3">
                         <div class="border p-3 rounded bg-white h-100">
                             <h5 class="text-success">Replacement Item (Optional)</h5>
@@ -236,27 +222,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                                 <input type="text" class="form-control" id="replacementSerial" placeholder="Scan or type serial">
                                 <input type="hidden" name="replacement_sl_id" id="replacementSlId">
                                 <div id="replacementFeedback" class="feedback"></div>
-
                                 <div class="mt-3">
                                     <label class="form-label">Return Price (editable)</label>
                                     <input type="number" step="0.01" name="price" id="price" class="form-control" required>
-                                    <div class="form-text">You can reduce the price before saving the return (e.g., restocking/penalty).</div>
+                                    <div class="form-text">You can reduce the price before saving the return.</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Reason -->
                 <div class="mb-3">
                     <label class="form-label">Reason for Return</label>
                     <textarea name="reason" class="form-control" rows="2" placeholder="Why is it being returned?"></textarea>
                 </div>
-
                 <div class="d-grid gap-2">
                     <button type="submit" name="submit_return" id="btnSubmit" class="btn btn-dark btn-lg">Process Return</button>
                 </div>
-
             </form>
         </div>
     </div>
@@ -264,35 +246,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
 
 <script>
 $(document).ready(function() {
-    // Initialize Select2 for searchable dropdowns
-    $('#vendor_id').select2({
-        placeholder: 'Search vendor',
-        width: '100%',
-        allowClear: true
-    });
+    $('#vendor_id').select2({ placeholder: 'Search vendor', width: '100%', allowClear: true });
+    $('#returned_sl_id').select2({ placeholder: 'Search product serial', width: '100%', allowClear: true });
+    flatpickr('#return_date', { dateFormat: 'Y-m-d', defaultDate: '<?php echo date('Y-m-d'); ?>', allowInput: true });
 
-    $('#returned_sl_id').select2({
-        placeholder: 'Search product serial',
-        width: '100%',
-        allowClear: true
-    });
-
-    // Initialize flatpickr for date picking (default today)
-    flatpickr('#return_date', {
-        dateFormat: 'Y-m-d',
-        defaultDate: '<?php echo date('Y-m-d'); ?>',
-        allowInput: true
-    });
-
-    // When a returned serial is selected, fetch its real price and populate price field
     $('#returned_sl_id').on('change', function() {
         let sl_id = $(this).val();
-        if (!sl_id) {
-            $('#originalPrice').val('');
-            $('#price').val('');
-            return;
-        }
-
+        if (!sl_id) { $('#originalPrice').val(''); $('#price').val(''); return; }
         $.ajax({
             url: '?action=get_price',
             data: { sl_id: sl_id },
@@ -301,25 +261,17 @@ $(document).ready(function() {
                 if (res.status === 'success') {
                     let p = res.price !== null ? parseFloat(res.price).toFixed(2) : '';
                     $('#originalPrice').val(p);
-                    // set the editable return price default to the original price
                     $('#price').val(p);
                 } else {
-                    $('#originalPrice').val('');
-                    $('#price').val('');
+                    $('#originalPrice').val(''); $('#price').val('');
                 }
             }
         });
     });
 
-    // --- Check Replacement Product Logic ---
     $('#replacementSerial').on('blur', function() {
         let serial = $(this).val().trim();
-        if (!serial) {
-            $('#replacementSlId').val('');
-            $('#replacementFeedback').text('');
-            return;
-        }
-
+        if (!serial) { $('#replacementSlId').val(''); $('#replacementFeedback').text(''); return; }
         $.ajax({
             url: '?action=check_serial',
             data: { serial: serial },
@@ -331,7 +283,6 @@ $(document).ready(function() {
                          $('#replacementFeedback').html('<span class="text-danger">Replacement cannot be the same as Returned item.</span>');
                          return;
                     }
-
                     $('#replacementSlId').val(res.data.sl_id);
                     $('#replacementFeedback').html(`<span class="text-success">Available: Model ID ${res.data.model_id_fk}</span>`);
                 } else {
@@ -342,14 +293,12 @@ $(document).ready(function() {
         });
     });
 
-    // Simple validation helper
     $('form').on('submit', function(e) {
         if (!$('#vendor_id').val() || !$('#returned_sl_id').val()) {
             e.preventDefault();
             alert('Please select a Vendor and a Product to return.');
             return;
         }
-        // price must be numeric and >= 0
         let priceVal = parseFloat($('#price').val());
         if (isNaN(priceVal) || priceVal < 0) {
             e.preventDefault();
@@ -359,6 +308,5 @@ $(document).ready(function() {
     });
 });
 </script>
-
 </body>
 </html>
