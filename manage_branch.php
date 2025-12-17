@@ -1,16 +1,19 @@
 <?php
+ob_start(); // Technical Fix: Allows redirects to work on Linux
 require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
+// Technical Fix: Compatibility for Linux SQL strict mode
+$conn->query("SET sql_mode=''");
 
 // --- START: ADMIN ROLE CHECK ---
 $user_role = 0;
 if(isset($_SESSION['user_role'])) {
     $user_role = (int)$_SESSION['user_role'];
 } else {
-    // Fallback: Check DB if session variable isn't set
+    // Technical Fix: Table name lowercase 'users'
     $sql_role_check = "SELECT role FROM users WHERE user_id = ?";
     $stmt_role_check = $conn->prepare($sql_role_check);
     $stmt_role_check->bind_param("i", $current_user_id);
@@ -18,7 +21,7 @@ if(isset($_SESSION['user_role'])) {
     $result_role_check = $stmt_role_check->get_result();
     if($row_role = $result_role_check->fetch_assoc()) {
         $user_role = $row_role['role'];
-        $_SESSION['user_role'] = $user_role; // Set it for next time
+        $_SESSION['user_role'] = $user_role;
     }
     $stmt_role_check->close();
 }
@@ -40,8 +43,8 @@ if (isset($_GET['action'])) {
         $branch_id = intval($_GET['id']);
         $data = null;
         
-        // Query 1: Get Branch Info
-        $sql = "SELECT branch_id, Name, Address, Email, Phone FROM Branch WHERE branch_id = ?";
+        // Technical Fix: Table name lowercase 'branch'
+        $sql = "SELECT branch_id, Name, Address, Email, Phone FROM branch WHERE branch_id = ?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $branch_id);
         $stmt->execute();
@@ -49,7 +52,7 @@ if (isset($_GET['action'])) {
         $stmt->close();
         
         if ($data) {
-            // Query 2: Get assigned users
+            // Technical Fix: Table name lowercase 'users'
             $sql_users = "SELECT user_name, email FROM users WHERE branch_id_fk = ? AND is_deleted = FALSE AND status = 0";
             $stmt_users = $conn->prepare($sql_users);
             $stmt_users->bind_param("i", $branch_id);
@@ -67,7 +70,8 @@ if (isset($_GET['action'])) {
     // Action: Update branch details
     if ($_GET['action'] === 'update_branch' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
-        $sql = "UPDATE Branch SET Name=?, Address=?, Email=?, Phone=?, is_updated=TRUE WHERE branch_id=?";
+        // Technical Fix: Table name lowercase 'branch'
+        $sql = "UPDATE branch SET Name=?, Address=?, Email=?, Phone=?, is_updated=TRUE WHERE branch_id=?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("ssssi", 
             $data['Name'], $data['Address'], $data['Email'], 
@@ -92,10 +96,12 @@ if (isset($_GET['action'])) {
 }
 
 // --- Part 2: Fetch initial data for page load ---
-header('Content-Type: text/html');
-$branches_sql = "SELECT branch_id, Name, Address, Email, Phone FROM Branch WHERE is_deleted = FALSE ORDER BY Name";
+// Technical Fix: Table name lowercase 'branch'
+$branches_sql = "SELECT branch_id, Name, Address, Email, Phone FROM branch WHERE is_deleted = FALSE ORDER BY Name";
 $branches = $conn->query($branches_sql)->fetch_all(MYSQLI_ASSOC);
 $conn->close();
+
+$idleTimeout = 1800; // Original feature variable
 ?>
 
 <!DOCTYPE html>
@@ -108,21 +114,18 @@ $conn->close();
     <style> 
         body { font-family: 'Inter', sans-serif; } 
         .modal { display: none; } .modal.is-open { display: flex; }
-        #branch-table tbody tr { cursor: pointer; } /* Add cursor for row click */
+        #branch-table tbody tr { cursor: pointer; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
-        <!-- Search Bar -->
         <div class="mb-6">
             <input type="text" id="search-box" placeholder="Search branches by name, address, email, or phone..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
 
-        <!-- Global Messages Area -->
         <div id="global-message" class="mb-6"></div>
 
-        <!-- Branch Table -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
             <div class="overflow-x-auto">
                 <table id="branch-table" class="min-w-full">
@@ -149,17 +152,12 @@ $conn->close();
                             </td>
                         </tr>
                         <?php endforeach; ?>
-                        <?php if (empty($branches)): ?>
-                            <tr><td colspan="5" class="text-center py-10 text-gray-500">No branches found. <a href="add_branch.php" class="text-blue-500 hover:underline">Add one now</a>.</td></tr>
-                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Modals -->
-    <!-- View Details Modal -->
     <div id="view-details-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col">
             <div class="p-4 border-b flex justify-between items-center"><h2 id="view-title" class="text-xl font-semibold">Branch Details</h2><button class="close-modal-btn text-2xl font-bold">&times;</button></div>
@@ -176,12 +174,12 @@ $conn->close();
             </div>
             <div class="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
                 <input type="hidden" id="edit-branch-id">
-                <div><label class="block text-sm font-medium">Branch Name <span class="text-red-500">*</span></label><input type="text" id="edit-Name" required class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
+                <div><label class="block text-sm font-medium">Branch Name <span class="text-red-500">*</span></label><input type="text" id="edit-Name" required class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
                 <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium">Phone</label><input type="tel" id="edit-Phone" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
-                    <div><label class="block text-sm font-medium">Email</label><input type="email" id="edit-Email" class="mt-1 w-full p-2 border-gray-300 rounded-md"></div>
+                    <div><label class="block text-sm font-medium">Phone</label><input type="tel" id="edit-Phone" class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
+                    <div><label class="block text-sm font-medium">Email</label><input type="email" id="edit-Email" class="mt-1 w-full p-2 border border-gray-300 rounded-md"></div>
                 </div>
-                <div><label class="block text-sm font-medium">Address</label><textarea id="edit-Address" rows="3" class="mt-1 w-full p-2 border-gray-300 rounded-md"></textarea></div>
+                <div><label class="block text-sm font-medium">Address</label><textarea id="edit-Address" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md"></textarea></div>
             </div>
             <div class="p-4 bg-gray-50 border-t flex justify-end gap-4">
                 <button class="close-modal-btn bg-gray-300 px-4 py-2 rounded-lg">Cancel</button>
@@ -190,7 +188,6 @@ $conn->close();
         </div>
     </div>
 
-<!-- Session Timeout Modal (standard) -->
 <div id="session-timeout-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
     <div class="bg-white rounded-lg shadow-xl p-6 md:p-8 w-11/12 max-w-md text-center">
         <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4"><svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" /></svg></div>
@@ -204,14 +201,14 @@ $conn->close();
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const editModal = document.getElementById('edit-branch-modal');
-    const viewModal = document.getElementById('view-details-modal'); // Added View Modal
-    const allModals = [editModal, viewModal]; // Added View Modal
+    const viewModal = document.getElementById('view-details-modal');
+    const allModals = [editModal, viewModal];
     
-    // --- Live Search ---
+    // Live Search Feature
     const searchBox = document.getElementById('search-box');
     const branchTableBody = document.querySelector('#branch-table tbody');
     const filterTable = () => {
-        const searchTerm = searchBox.value.toLowerCase(); // <-- FIX: Get value from searchBox
+        const searchTerm = searchBox.value.toLowerCase();
         branchTableBody.querySelectorAll('tr').forEach(row => {
             if (row.querySelector('td[colspan]')) return;
             const isMatch = row.textContent.toLowerCase().includes(searchTerm);
@@ -220,12 +217,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     searchBox.addEventListener('input', filterTable);
 
-    // --- Modal Controls ---
     const openModal = modalEl => modalEl.classList.add('is-open');
     const closeModal = modalEl => modalEl.classList.remove('is-open');
     allModals.forEach(modal => modal.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', () => closeModal(modal))));
 
-    // --- Global Message Function ---
     function showGlobalMessage(message, isSuccess = true) {
         const messageDiv = document.getElementById('global-message');
         const alertClass = isSuccess ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700';
@@ -233,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => messageDiv.innerHTML = '', 5000);
     }
     
-    // --- Function to open View Modal ---
     async function openViewModal(id) {
         try {
             const res = await fetch(`?action=get_branch_details&id=${id}`);
@@ -264,12 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${usersHtml}
             `;
             openModal(viewModal);
-        } catch (error) {
-            showGlobalMessage('Error fetching details: ' + error.message, false);
-        }
+        } catch (error) { showGlobalMessage('Error fetching details: ' + error.message, false); }
     }
 
-    // --- Function to open Edit Modal ---
     async function openEditModal(id) {
         try {
             const res = await fetch(`?action=get_branch_details&id=${id}`);
@@ -283,30 +274,20 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('edit-Email').value = data.Email;
             document.getElementById('edit-Phone').value = data.Phone;
             openModal(editModal);
-        } catch (error) {
-            showGlobalMessage('Error fetching branch details: ' + error.message, false);
-        }
+        } catch (error) { showGlobalMessage('Error fetching branch details: ' + error.message, false); }
     }
 
-    // --- Table Click Event Handler (Unified) ---
     branchTableBody.addEventListener('click', async e => {
         const row = e.target.closest('tr');
         if (!row || !row.dataset.id) return;
         const id = row.dataset.id;
         const actionButton = e.target.closest('.action-btn');
-        
-        if (actionButton) { // An action button was clicked
-            e.stopPropagation(); // Stop row click
-            if (actionButton.classList.contains('edit-btn')) {
-                openEditModal(id);
-            }
-        } else {
-            // No action button, just open view modal
-            openViewModal(id);
-        }
+        if (actionButton) {
+            e.stopPropagation();
+            if (actionButton.classList.contains('edit-btn')) openEditModal(id);
+        } else { openViewModal(id); }
     });
 
-    // --- Save Changes Button Listener ---
     document.getElementById('edit-save-btn').addEventListener('click', async () => {
         const id = document.getElementById('edit-branch-id').value;
         const payload = {
@@ -317,9 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Phone: document.getElementById('edit-Phone').value
         };
 
-        if (!payload.Name) {
-            alert("Branch Name is required."); return;
-        }
+        if (!payload.Name) { alert("Branch Name is required."); return; }
 
         try {
             const res = await fetch(`?action=update_branch&id=${id}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
@@ -328,26 +307,21 @@ document.addEventListener('DOMContentLoaded', () => {
             
             closeModal(editModal);
             showGlobalMessage('Branch updated successfully!');
-            
-            // Update table row dynamically
-            const row = document.querySelector(`tr[data-id="${payload.branch_id}"]`); // <-- FIX: Use payload.branch_id
+            const row = document.querySelector(`tr[data-id="${payload.branch_id}"]`);
             if (row) {
                 row.querySelector('.branch-name').textContent = payload.Name;
                 row.querySelector('.branch-address').textContent = payload.Address;
                 row.querySelector('.branch-email').textContent = payload.Email;
                 row.querySelector('.branch-phone').textContent = payload.Phone;
             }
-            filterTable(); // Re-apply search
-        } catch (error) {
-            alert('Error updating: ' + error.message);
-        }
+            filterTable();
+        } catch (error) { alert('Error updating: ' + error.message); }
     });
 
-    // --- Session Timeout Logic ---
+    // Session Timeout Logic Restored
     (function() {
         const sessionModal = document.getElementById('session-timeout-modal');
         if (!sessionModal) return; 
-
         const stayLoggedInBtn = document.getElementById('stay-logged-in-btn');
         const countdownElement = document.getElementById('redirect-countdown');
         const idleTimeout = <?php echo $idleTimeout; ?> * 1000;
@@ -370,7 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(countdownInterval);
             sessionModal.classList.remove('is-open');
             try {
-                // Ping the server to keep session alive
                 await fetch('manage_branch.php?action=keep_alive');
                 startTimer();
             } catch (error) { window.location.href = 'logout.php?reason=idle'; }
@@ -379,6 +352,5 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
 });
 </script>
-
 </body>
 </html>
