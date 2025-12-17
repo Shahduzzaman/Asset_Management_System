@@ -5,7 +5,7 @@ $password = "";
 $dbname = "ams"; 
 
 $conn = new mysqli($servername, $username, $password, $dbname);
-
+$conn->query("SET sql_mode=''");
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
