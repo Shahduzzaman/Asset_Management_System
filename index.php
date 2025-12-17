@@ -1,5 +1,5 @@
 <?php
-// Start session safely (prevents duplicate session warnings)
+ob_start();
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
