@@ -129,7 +129,6 @@ while ($row = $result_items->fetch_assoc()) {
 /* ---------------------------------------
    Smart Client Info Logic
 ----------------------------------------- */
-// Determine Name
 $client_name = $invoice['Company_Name'] ?? '';
 $branch_name = $invoice['Branch_Name'] ?? '';
 $display_name = 'Walk-in Client';
@@ -143,7 +142,6 @@ if (!empty($client_name)) {
     $display_name = $branch_name;
 }
 
-// Determine Address (Prioritize Branch)
 $display_addr = '';
 if (!empty($invoice['Branch_Address'])) {
     $display_addr = $invoice['Branch_Address'];
@@ -151,7 +149,6 @@ if (!empty($invoice['Branch_Address'])) {
     $display_addr = $invoice['Head_Address'];
 }
 
-// Determine Phone (Prioritize Branch)
 $display_phone = '';
 if (!empty($invoice['Branch_Phone'])) {
     $display_phone = $invoice['Branch_Phone'];
@@ -197,7 +194,7 @@ body{
     min-height:297mm;
     background:white;
     margin:20px auto;
-    padding:10mm 10mm 40mm 10mm; /* Extra bottom padding for footer */
+    padding:10mm 10mm 40mm 10mm; 
     position:relative;
     box-shadow:0 0 10px rgba(0,0,0,0.3);
 }
@@ -225,7 +222,7 @@ body{
 .invoice-title h2{font-size:18px;font-weight:800;letter-spacing:4px; text-transform: uppercase;}
 
 /* INFO GRID */
-.info-grid{display:flex;justify-content:space-between;margin-bottom:25px;gap:20px; font-size: 12px;}
+.info-grid{display:flex;justify-content:space-between;margin-bottom:20px;gap:20px; font-size: 12px;}
 .bill-to{flex:0 0 55%;}
 .bill-box{border:1px solid #ddd;padding:10px;background:#f9f9f9;border-radius:4px;}
 .bill-label{font-size:10px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:5px;}
@@ -237,6 +234,27 @@ body{
 .meta-table{width:100%;font-size:11px;border-collapse:collapse;}
 .meta-key{font-weight:600;color:#555;text-align:left; padding: 2px 0;}
 .meta-val{font-weight:700;color:#000;text-align:right;}
+
+/* WORK ORDER BAR */
+.wo-bar {
+    width: 100%;
+    margin-bottom: 15px;
+    font-size: 12px;
+    border-bottom: 1px dashed #ddd;
+    padding-bottom: 8px;
+    color: #333;
+}
+.wo-label {
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    font-size: 11px;
+}
+.wo-value {
+    font-weight: 600;
+    margin-right: 25px;
+    font-size: 13px;
+}
 
 /* ITEMS TABLE */
 .items-table{
@@ -268,7 +286,12 @@ body{
 .terms-box {margin-top:20px; font-size:10px; color:#777; border: 1px solid #eee; padding: 10px; border-radius: 5px;}
 .terms-box ul {padding-left:15px; margin-top:5px;}
 
-/* FOOTER WRAP - RESTORED DESIGN */
+/* PAYMENT INFO */
+.payment-info { margin-top: 15px; font-size: 10px; color: #333; line-height: 1.4; border: 1px solid #eee; padding: 10px; border-radius: 5px; background: #fafafa; }
+.payment-info p { margin-bottom: 6px; }
+.payment-info strong { color: #000; }
+
+/* FOOTER WRAP */
 .footer-wrap {
     position: absolute;
     bottom: 0;
@@ -312,7 +335,7 @@ body{
         margin:0;
         box-shadow:none;
         border:none;
-        padding: 10mm 10mm 0 10mm; /* Bottom handled by spacer */
+        padding: 10mm 10mm 0 10mm; 
         min-height: auto;
     }
 
@@ -320,17 +343,15 @@ body{
     .items-table th { -webkit-print-color-adjust: exact; }
     .bill-box { -webkit-print-color-adjust: exact; }
 
-    /* Fixed Footer for Print */
     .footer-wrap {
         position: fixed;
         bottom: 0;
         left: 0;
         width: 100%;
         padding-bottom: 10mm;
-        background: white; /* Avoid transparency issues */
+        background: white; 
     }
     
-    /* Spacer to push content above fixed footer */
     .print-footer-spacer { height: 40mm; display: block; }
 }
 
@@ -380,24 +401,32 @@ body{
                 <?php if (!empty(trim($display_addr))): ?>
                     <div class="client-addr"><?php echo nl2br(htmlspecialchars(trim($display_addr))); ?></div>
                 <?php endif; ?>
-                
-                <?php if (!empty(trim($display_phone))): ?>
-                    <div class="client-contact"><strong>Tel:</strong> <?php echo htmlspecialchars(trim($display_phone)); ?></div>
-                <?php endif; ?>
             </div>
         </div>
 
         <div class="meta-info">
             <table class="meta-table">
+                <tr><td class="meta-key">BIN No.:</td><td class="meta-val">000380661-0101</td></tr>
+                <tr><td class="meta-key">E-TIN No.:</td><td class="meta-val">831690569843</td></tr>
+                <tr><td class="meta-key">Trad.:</td><td class="meta-val">TRAD/DNCC/082717/2022</td></tr>
+                
                 <tr><td class="meta-key">Invoice No:</td><td class="meta-val"><?php echo htmlspecialchars($invoice['Invoice_No']); ?></td></tr>
                 <tr><td class="meta-key">Date:</td><td class="meta-val"><?php echo date('d-M-Y', strtotime($invoice['invoice_date'])); ?></td></tr>
-                <?php if(!empty($invoice['WO_No'])): ?>
-                <tr><td class="meta-key">Work Order:</td><td class="meta-val"><?php echo htmlspecialchars($invoice['WO_No']); ?></td></tr>
-                <?php endif; ?>
-                <tr><td class="meta-key">Sales Person:</td><td class="meta-val"><?php echo htmlspecialchars($invoice['Created_By_User'] ?? '-'); ?></td></tr>
-            </table>
+                </table>
         </div>
     </div>
+
+    <?php if(!empty($invoice['WO_No'])): ?>
+    <div class="wo-bar">
+        <span class="wo-label">Work Order Ref:</span>
+        <span class="wo-value"><?php echo htmlspecialchars($invoice['WO_No']); ?></span>
+        
+        <?php if(!empty($invoice['WO_Date'])): ?>
+            <span class="wo-label">Date:</span>
+            <span class="wo-value"><?php echo date('d-M-Y', strtotime($invoice['WO_Date'])); ?></span>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
 
     <table class="items-table">
     <thead>
@@ -467,6 +496,18 @@ body{
         </ul>
     </div>
 
+    <div class="payment-info">
+        <p><strong>PLEASE NOTE:</strong> You are requested to send a copy of VAT & AIT Challan deducted against this bill.</p>
+        
+        <p>Please pay this bill by cheque / pay order in favour of <strong>Protection One (Pvt.) Ltd.</strong> Banani, Dhaka and send under registered post /courier service within 07 (seven) days after receiving the bill.</p>
+        
+        <p style="text-align:center; font-weight:bold; margin: 5px 0;">OR</p>
+        
+        <p>You may make payment to <strong>Pubali Bank PLC</strong> of Banani Branch. You may make payment on our company Account no: <strong>3311 9010 22190</strong>.</p>
+        
+        <p style="margin-top: 10px; font-style: italic;">Please sign and return the second bill copy.</p>
+    </div>
+
     <div class="print-footer-spacer"></div>
 
     <div class="footer-wrap">
@@ -499,15 +540,12 @@ body{
 <?php if($is_print): ?>
 <script>
 window.onload = function(){
-    // Simple estimation for total pages based on A4 height
     const approximatePageHeight = 1123; 
     const scrollHeight = document.body.scrollHeight;
     const totalPages = Math.max(1, Math.ceil(scrollHeight / approximatePageHeight));
     
-    // Update total pages
     document.querySelectorAll('.page-total').forEach(el => el.textContent = totalPages);
     
-    // Ensure Title is set for PDF Save
     document.title = "<?php echo htmlspecialchars($invoice['Invoice_No']); ?>";
     setTimeout(function(){ window.print(); }, 500);
 }
