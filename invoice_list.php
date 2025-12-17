@@ -5,8 +5,6 @@ $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
 
-
-
 // --- Initialize Search ---
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
@@ -134,10 +132,15 @@ if (!empty($search)) {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                         <button onclick="openInvoiceModal(<?php echo $row['invoice_id']; ?>, '<?php echo $row['Invoice_No']; ?>')" 
-                                                class="text-blue-600 hover:text-blue-900 mr-3" title="View Details">
+                                                class="text-blue-600 hover:text-blue-900 mr-2" title="View Details">
                                             <i class="fas fa-eye fa-lg"></i>
                                         </button>
                                         
+                                        <button onclick="printChallanDirect(<?php echo $row['invoice_id']; ?>, '<?php echo $row['Invoice_No']; ?>')" 
+                                                class="text-green-600 hover:text-green-900 mr-2" title="Print Delivery Challan">
+                                            <i class="fas fa-truck fa-lg"></i>
+                                        </button>
+
                                         <button onclick="printInvoiceDirect(<?php echo $row['invoice_id']; ?>, '<?php echo $row['Invoice_No']; ?>')" 
                                                 class="text-gray-600 hover:text-gray-900 focus:outline-none" title="Print Invoice">
                                             <i class="fas fa-print fa-lg"></i>
@@ -243,13 +246,40 @@ if (!empty($search)) {
             
             iframe.src = 'invoice_view.php?id=' + invoiceId + '&print=true';
 
-            // IMPORTANT: We try to set the title from here, 
-            // but the BEST practice is to set <title> in invoice_view.php
             iframe.onload = function() {
-                // Attempt to overwrite the title of the iframe document
-                // This title is what the PDF 'Save As' feature uses
                 if(iframe.contentDocument) {
                     iframe.contentDocument.title = invoiceNo;
+                }
+            };
+
+            document.body.appendChild(iframe);
+        }
+
+        // --- 3. DELIVERY CHALLAN PRINT FUNCTION ---
+        function printChallanDirect(invoiceId, invoiceNo) {
+            // Remove existing frame
+            var existingFrame = document.getElementById('printFrame');
+            if (existingFrame) {
+                document.body.removeChild(existingFrame);
+            }
+
+            // Create invisible iframe
+            var iframe = document.createElement('iframe');
+            iframe.id = 'printFrame';
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            
+            // Point to delivery_challan.php
+            iframe.src = 'delivery_challan.php?id=' + invoiceId + '&print=true';
+
+            iframe.onload = function() {
+                if(iframe.contentDocument) {
+                    // Title for Challan PDF save
+                    iframe.contentDocument.title = "DC-" + invoiceNo;
                 }
             };
 
