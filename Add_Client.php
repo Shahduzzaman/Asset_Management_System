@@ -3,7 +3,7 @@ ob_start();
 require_once 'session_guard.php';
 require_once 'connection.php';
 
-// Enable error reporting to prevent blank pages and see actual database errors
+// Enable error reporting to prevent blank pages and see database errors
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $current_user_id = $_SESSION['user_id'];
@@ -21,7 +21,7 @@ if (isset($_GET['action'])) {
     try {
         if ($_GET['action'] === 'search_head_office' && isset($_GET['query'])) {
             $query = trim($_GET['query']) . '%';
-            // Table name changed to lowercase 'client_head' to match database schema
+            // Table name updated to lowercase 'client_head'
             $sql = "SELECT client_head_id, Company_Name, Department FROM client_head WHERE Company_Name LIKE ? AND is_deleted = FALSE LIMIT 10";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("s", $query);
@@ -55,7 +55,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 throw new Exception("Company Name is required.");
             }
 
-            // Table name changed to lowercase 'client_head'
+            // Table name updated to lowercase 'client_head'
             $sql = "INSERT INTO client_head (Company_Name, Department, Contact_Person, Contact_Number, Address, created_by) VALUES (?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("sssssi", $company_name, $department, $contact_person, $contact_number, $address, $current_user_id);
@@ -80,7 +80,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 throw new Exception("Head Office selection and Branch Name are required.");
             }
 
-            // Table name changed to lowercase 'client_branch'
+            // Table name updated to lowercase 'client_branch'
             $sql = "INSERT INTO client_branch (client_head_id_fk, Branch_Name, Contact_Person1, Contact_Number1, Contact_Person2, Contact_Number2, Zone, Address, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("isssssssi", $client_head_id_fk, $branch_name, $cp1, $cn1, $cp2, $cn2, $zone, $address, $current_user_id);
@@ -101,8 +101,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Client</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -114,87 +113,76 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         #search-results div:hover { background-color: #f3f4f6; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <div class="container mx-auto p-4 sm:p-8">
-        <main class="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-            <div class="flex border-b border-gray-200 mb-8">
-                <button id="tab-head" class="py-3 px-6 tab-btn-active transition-all">Add Head Office</button>
-                <button id="tab-branch" class="py-3 px-6 tab-btn-inactive transition-all">Add Branch Office</button>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <main class="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-8">
+            <div class="mb-6 flex border-b">
+                <button id="tab-head" type="button" class="py-3 px-6 tab-btn-active">Add Head Office</button>
+                <button id="tab-branch" type="button" class="py-3 px-6 tab-btn-inactive">Add Branch Office</button>
             </div>
 
-            <?php if ($successMessage): ?>
-                <div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700">
-                    <?php echo htmlspecialchars($successMessage); ?>
-                </div>
-            <?php endif; ?>
-            <?php if ($errorMessage): ?>
-                <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
-                    <?php echo htmlspecialchars($errorMessage); ?>
-                </div>
-            <?php endif; ?>
+            <?php if ($successMessage): ?><div id="alert-box" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-6"><?php echo htmlspecialchars($successMessage); ?></div><?php endif; ?>
+            <?php if ($errorMessage): ?><div id="alert-box" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6"><?php echo htmlspecialchars($errorMessage); ?></div><?php endif; ?>
 
-            <form id="head-form" action="Add_Client.php" method="POST" class="space-y-5">
+            <form id="head-form" action="Add_Client.php" method="POST" class="space-y-6">
                 <input type="hidden" name="action" value="add_head">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
-                    <input type="text" name="Company_Name" required class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <input type="text" name="Company_Name" required class="w-full p-3 border border-gray-300 rounded-lg">
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                        <input type="text" name="Department" class="w-full p-3 border rounded-lg">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
-                        <input type="text" name="Contact_Person" class="w-full p-3 border rounded-lg">
-                    </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <input type="text" name="Department" placeholder="Department" class="w-full p-3 border border-gray-300 rounded-lg">
+                    <input type="text" name="Contact_Person" placeholder="Contact Person Name" class="w-full p-3 border border-gray-300 rounded-lg">
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                    <input type="tel" name="Contact_Number" class="w-full p-3 border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                    <textarea name="Address" rows="3" class="w-full p-3 border rounded-lg"></textarea>
-                </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-3 rounded-lg hover:bg-indigo-700 transition">Save Head Office</button>
+                <input type="tel" name="Contact_Number" placeholder="Contact Number" class="w-full p-3 border border-gray-300 rounded-lg">
+                <textarea name="Address" rows="3" placeholder="Address" class="w-full p-3 border border-gray-300 rounded-lg"></textarea>
+                <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700">Save Head Office</button>
             </form>
 
-            <form id="branch-form" action="Add_Client.php" method="POST" class="space-y-5 hidden">
+            <form id="branch-form" action="Add_Client.php" method="POST" class="space-y-6 hidden">
                 <input type="hidden" name="action" value="add_branch">
                 <input type="hidden" id="client_head_id_fk" name="client_head_id_fk">
+                
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Select Head Office *</label>
                     <div class="relative">
-                        <input type="text" id="head-office-search" placeholder="Search company..." required class="w-full p-3 border rounded-lg outline-none" autocomplete="off">
+                        <input type="text" id="head-office-search" placeholder="Search Company..." required class="w-full p-3 border border-gray-300 rounded-lg" autocomplete="off">
                         <button type="button" id="clear-search-btn" class="absolute right-3 top-3 text-gray-400 hidden text-xl">&times;</button>
                     </div>
-                    <div id="search-results" class="absolute z-10 w-full bg-white border rounded-b-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
+                    <div id="search-results" class="border border-gray-300 rounded-b-lg -mt-1 bg-white max-h-40 overflow-y-auto hidden shadow-lg"></div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Branch Name *</label>
-                    <input type="text" name="Branch_Name" required class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+
+                <input type="text" name="Branch_Name" placeholder="Branch Name *" required class="w-full p-3 border border-gray-300 rounded-lg">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <input type="text" name="Contact_Person1" placeholder="Contact Person 1" class="w-full p-3 border border-gray-300 rounded-lg">
+                    <input type="tel" name="Contact_Number1" placeholder="Contact Number 1" class="w-full p-3 border border-gray-300 rounded-lg">
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="text" name="Contact_Person1" placeholder="Contact Person 1" class="p-3 border rounded-lg">
-                    <input type="tel" name="Contact_Number1" placeholder="Number 1" class="p-3 border rounded-lg">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <input type="text" name="Contact_Person2" placeholder="Contact Person 2" class="w-full p-3 border border-gray-300 rounded-lg">
+                    <input type="tel" name="Contact_Number2" placeholder="Contact Number 2" class="w-full p-3 border border-gray-300 rounded-lg">
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-3 rounded-lg hover:bg-indigo-700 transition">Save Branch Office</button>
+
+                <input type="text" name="Zone" placeholder="Zone (e.g. North)" class="w-full p-3 border border-gray-300 rounded-lg">
+                <textarea name="Address" rows="3" placeholder="Branch Address" class="w-full p-3 border border-gray-300 rounded-lg"></textarea>
+                
+                <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700">Save Branch Office</button>
             </form>
         </main>
     </div>
 
-    <div id="session-timeout-modal" class="modal fixed inset-0 bg-gray-900/50 items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-xl p-8 max-w-sm w-full text-center shadow-2xl">
+    <div id="session-timeout-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg p-8 max-w-sm w-full text-center">
             <h3 class="text-xl font-bold mb-2">Session Expiring</h3>
-            <p class="text-gray-500 mb-6">You will be logged out in <span id="redirect-countdown" class="font-bold text-indigo-600">10</span> seconds.</p>
-            <button id="stay-logged-in-btn" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700">Keep me logged in</button>
+            <p class="text-gray-500 mb-6">Redirecting in <span id="redirect-countdown" class="font-bold text-indigo-600">10</span> seconds.</p>
+            <button id="stay-logged-in-btn" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold">Stay Logged In</button>
         </div>
     </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // Tabs
+    // Tab Switching
     const tabHead = document.getElementById('tab-head');
     const tabBranch = document.getElementById('tab-branch');
     const headForm = document.getElementById('head-form');
@@ -224,8 +212,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.status === 'success' && result.data.length > 0) {
             result.data.forEach(item => {
                 const div = document.createElement('div');
-                div.className = 'p-3 border-b cursor-pointer hover:bg-indigo-50';
-                div.innerHTML = `<p class="font-semibold text-gray-800">${item.Company_Name}</p><p class="text-xs text-gray-500">${item.Department || 'No Dept'}</p>`;
+                div.className = 'p-3 border-t cursor-pointer hover:bg-gray-50';
+                div.innerHTML = `<strong>${item.Company_Name}</strong><br><small>${item.Department || ''}</small>`;
                 div.onclick = () => {
                     hiddenInput.value = item.client_head_id;
                     searchBox.value = item.Company_Name; searchBox.readOnly = true;
@@ -261,10 +249,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('stay-logged-in-btn').onclick = async () => {
-        modal.classList.remove('is-open');
-        clearInterval(countdownInterval);
-        await fetch('Add_Client.php?action=keep_alive');
-        resetTimer();
+        modal.classList.remove('is-open'); clearInterval(countdownInterval);
+        await fetch('Add_Client.php?action=keep_alive'); resetTimer();
     };
     resetTimer();
 });
