@@ -503,7 +503,7 @@ body{
         
         <p style="text-align:center; font-weight:bold; margin: 5px 0;">OR</p>
         
-        <p>You may make payment to <strong>Pubali Bank PLC</strong> of Banani Branch. You may make payment on our company Account no: <strong>3311 9010 22190</strong>.</p>
+        <p>You may make payment to <strong>Pubali Bank PLC</strong> of Banani Branch, Account no: <strong>3311 9010 22190</strong>.</p>
         
         <p style="margin-top: 10px; font-style: italic;">Please sign and return the second bill copy.</p>
     </div>
