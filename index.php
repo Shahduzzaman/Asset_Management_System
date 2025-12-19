@@ -110,7 +110,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Protection One AMS - Login</title>
+    <title>Protection One IMS - Login</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -129,10 +129,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <div class="w-full max-w-sm mx-auto bg-white p-8 rounded-xl shadow-lg">
 
     <div class="flex flex-col items-center mb-6">
-        <img src="images/logo.png" alt="Protection One AMS Logo"
+        <img src="images/logo.png" alt="Protection One IMS Logo"
              class="h-16 w-auto mb-4"
              onerror="this.style.display='none'">
-        <h1 class="text-2xl font-bold text-gray-800">Protection One AMS</h1>
+        <h1 class="text-2xl font-bold text-gray-800">Protection One IMS</h1>
     </div>
 
     <?php if (!empty($errorMessage)): ?>
