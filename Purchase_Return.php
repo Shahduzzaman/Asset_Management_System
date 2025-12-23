@@ -1,7 +1,6 @@
 <?php
 ob_start(); // Ensures headers can be sent without error
 require_once 'connection.php'; // Expects $conn (mysqli)
-
 require_once 'session_guard.php';
 
 $user_id = (int)$_SESSION['user_id'];
@@ -22,7 +21,6 @@ $messageType = '';
 
 // Fetch All Vendors
 $vendorsList = [];
-// Technical Fix: Lowercase table name 'vendors'
 $sqlVendors = "SELECT vendor_id, vendor_name FROM vendors ORDER BY vendor_name ASC";
 $resVendors = $conn->query($sqlVendors);
 if ($resVendors) {
@@ -31,28 +29,62 @@ if ($resVendors) {
     }
 }
 
-// Fetch All Potential Return Items (exclude status = 1 or 4)
-$productsList = [];
-// Technical Fix: Lowercase table names 'product_sl' and 'models'
-$sqlProducts = "SELECT p.sl_id, p.product_sl, p.model_id_fk, p.purchase_id_fk, (SELECT model_name FROM models m WHERE m.model_id = p.model_id_fk LIMIT 1) AS model_name
-                FROM product_sl p
-                WHERE p.status NOT IN (1,4)
-                ORDER BY p.product_sl ASC";
-$resProducts = $conn->query($sqlProducts);
-if ($resProducts) {
-    while ($row = $resProducts->fetch_assoc()) {
-        $productsList[] = $row;
-    }
-}
+// NOTE: We no longer fetch $productsList here. 
+// It will be fetched dynamically via AJAX based on the selected Vendor.
 
 // --- 3. HANDLE AJAX REQUESTS ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $action = $_GET['action'];
 
+    // --- NEW: FETCH PRODUCTS BY VENDOR ---
+    // --- NEW: FETCH PRODUCTS BY VENDOR (ROBUST VERSION) ---
+    if ($action === 'get_vendor_products') {
+        $vendor_id = isset($_GET['vendor_id']) ? (int)$_GET['vendor_id'] : 0;
+        
+        // 1. Check if vendor_id is valid
+        if ($vendor_id <= 0) {
+            ob_end_clean(); 
+            echo json_encode(['status' => 'error', 'message' => 'Invalid Vendor ID']); 
+            exit;
+        }
+
+        // 2. The Query
+        // NOTE: Ensure your 'purchase' table actually has 'vendor_id_fk'. 
+        // If your database uses 'vendor_id', change 'pur.vendor_id_fk' to 'pur.vendor_id' below.
+        $sql = "SELECT p.sl_id, p.product_sl, m.model_name
+            FROM product_sl p
+            JOIN purchased_products pur ON p.purchase_id_fk = pur.purchase_id
+            LEFT JOIN models m ON p.model_id_fk = m.model_id
+            WHERE pur.vendor_id = ? AND p.status NOT IN (1,4)
+            ORDER BY p.product_sl ASC";
+        
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+             // This catches SQL errors (like wrong column name)
+             ob_end_clean();
+             echo json_encode(['status' => 'error', 'message' => 'SQL Error: ' . $conn->error]);
+             exit;
+        }
+
+        $stmt->bind_param("i", $vendor_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        
+        $data = [];
+        while ($row = $res->fetch_assoc()) {
+            $data[] = $row;
+        }
+        
+        // 3. CLEAN OUTPUT BUFFER to prevent JSON errors
+        if (ob_get_length()) ob_end_clean();
+        
+        echo json_encode(['status' => 'success', 'data' => $data]);
+        exit;
+    }
+
     if ($action === 'check_serial') {
         $serial = $_GET['serial'] ?? '';
-        // Technical Fix: Lowercase table name 'product_sl'
         $sql = "SELECT sl_id, product_sl, status, model_id_fk, purchase_id_fk FROM product_sl WHERE product_sl = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("s", $serial);
@@ -70,7 +102,6 @@ if (isset($_GET['action'])) {
         $sl_id = isset($_GET['sl_id']) ? (int)$_GET['sl_id'] : 0;
         if (!$sl_id) { echo json_encode(['status'=>'error','message'=>'Invalid SL']); exit; }
 
-        // Technical Fix: Lowercase table names 'product_sl' and 'purchased_products'
         $sql = "SELECT p.purchase_id_fk, pp.unit_price
                 FROM product_sl p
                 LEFT JOIN purchased_products pp ON pp.purchase_id = p.purchase_id_fk
@@ -95,8 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
     $returned_sl_id = (int)$_POST['returned_sl_id'];
     $replacement_sl_id = !empty($_POST['replacement_sl_id']) ? (int)$_POST['replacement_sl_id'] : NULL;
     $reason = trim($_POST['reason']);
-    $price = isset($_POST['price']) ? (float)$_POST['price'] : 0.00; // returned price (may be reduced)
-    $return_date = $_POST['return_date'] . ' ' . date('H:i:s'); // Append current time
+    $price = isset($_POST['price']) ? (float)$_POST['price'] : 0.00;
+    $return_date = $_POST['return_date'] . ' ' . date('H:i:s');
 
     if (!$vendor_id || !$returned_sl_id) {
         $message = "Error: Vendor and Returned Product are required.";
@@ -104,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
     } else {
         $conn->begin_transaction();
         try {
-            // 1. Insert into purchase_return (Technical Fix: Lowercase table name)
+            // 1. Insert into purchase_return
             $sqlInsert = "INSERT INTO purchase_return 
                           (vendor_id_fk, returned_product_sl_id_fk, replacement_product_sl_id_fk, price, reason, return_date, created_by) 
                           VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -115,13 +146,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                 throw new Exception("Failed to save return record: " . $stmt->error);
             }
 
-            // 2. Update Status of Returned Item (Technical Fix: Lowercase table name)
+            // 2. Update Status of Returned Item
             $sqlUpdateReturn = "UPDATE product_sl SET status = 2 WHERE sl_id = ?";
             $stmtRet = $conn->prepare($sqlUpdateReturn);
             $stmtRet->bind_param("i", $returned_sl_id);
             $stmtRet->execute();
 
-            // 3. Update Status of Replacement Item (Technical Fix: Lowercase table name)
+            // 3. Update Status of Replacement Item
             if ($replacement_sl_id) {
                 $sqlUpdateRep = "UPDATE product_sl SET status = 0 WHERE sl_id = ?";
                 $stmtRep = $conn->prepare($sqlUpdateRep);
@@ -200,12 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                             <div class="mb-3">
                                 <label class="form-label">Product Serial Number (Search)</label>
                                 <select name="returned_sl_id" id="returned_sl_id" class="form-select" required>
-                                    <option value="">-- Select Product to Return --</option>
-                                    <?php foreach ($productsList as $prod): ?>
-                                        <option value="<?php echo $prod['sl_id']; ?>" data-purchase-id="<?php echo $prod['purchase_id_fk']; ?>">
-                                            <?php echo htmlspecialchars($prod['product_sl'] . ' (' . $prod['model_name'] . ')'); ?>
-                                        </option>
-                                    <?php endforeach; ?>
+                                    <option value="">-- Select Vendor First --</option>
                                 </select>
                                 <div class="mt-2">
                                     <label class="form-label">Original Purchase Price</label>
@@ -247,9 +273,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
 <script>
 $(document).ready(function() {
     $('#vendor_id').select2({ placeholder: 'Search vendor', width: '100%', allowClear: true });
-    $('#returned_sl_id').select2({ placeholder: 'Search product serial', width: '100%', allowClear: true });
+    $('#returned_sl_id').select2({ placeholder: 'Select Vendor First', width: '100%', allowClear: true });
     flatpickr('#return_date', { dateFormat: 'Y-m-d', defaultDate: '<?php echo date('Y-m-d'); ?>', allowInput: true });
 
+    // --- 1. HANDLE VENDOR CHANGE (Fetch Products) ---
+    $('#vendor_id').on('change', function() {
+        let vendorId = $(this).val();
+        
+        // Clear existing data
+        $('#returned_sl_id').empty();
+        $('#originalPrice').val('');
+        $('#price').val('');
+        
+        if (vendorId) {
+            // Show loading state
+            $('#returned_sl_id').append('<option value="">Loading products...</option>');
+            
+            $.ajax({
+                url: '?action=get_vendor_products',
+                data: { vendor_id: vendorId },
+                dataType: 'json',
+                success: function(res) {
+                    let options = '<option value="">-- Select Product to Return --</option>';
+                    if (res.status === 'success' && res.data.length > 0) {
+                        $.each(res.data, function(index, item) {
+                            options += `<option value="${item.sl_id}">${item.product_sl} (${item.model_name || 'N/A'})</option>`;
+                        });
+                    } else {
+                        options = '<option value="">No returnable items found for this vendor</option>';
+                    }
+                    // Update Select2
+                    $('#returned_sl_id').html(options).trigger('change');
+                },
+                error: function() {
+                    $('#returned_sl_id').html('<option value="">Error loading data</option>');
+                }
+            });
+        } else {
+            // Reset if no vendor selected
+            $('#returned_sl_id').html('<option value="">-- Select Vendor First --</option>').trigger('change');
+        }
+    });
+
+    // --- 2. HANDLE PRODUCT SELECTION (Get Price) ---
     $('#returned_sl_id').on('change', function() {
         let sl_id = $(this).val();
         if (!sl_id) { $('#originalPrice').val(''); $('#price').val(''); return; }
@@ -269,6 +335,7 @@ $(document).ready(function() {
         });
     });
 
+    // --- 3. HANDLE REPLACEMENT SERIAL CHECK ---
     $('#replacementSerial').on('blur', function() {
         let serial = $(this).val().trim();
         if (!serial) { $('#replacementSlId').val(''); $('#replacementFeedback').text(''); return; }
@@ -293,6 +360,7 @@ $(document).ready(function() {
         });
     });
 
+    // --- 4. FORM VALIDATION ---
     $('form').on('submit', function(e) {
         if (!$('#vendor_id').val() || !$('#returned_sl_id').val()) {
             e.preventDefault();
