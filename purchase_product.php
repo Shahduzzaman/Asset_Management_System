@@ -272,12 +272,51 @@ $conn->close();
     <div id="final-confirmation-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50"><div class="bg-white rounded-lg shadow-xl w-11/12 max-w-3xl flex flex-col p-6"><h2 class="text-2xl font-bold mb-4">Confirm Purchase Submission</h2><div class="grid grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 rounded-lg border text-sm"><p><strong>Vendor:</strong> <span id="confirm-vendor"></span></p><p><strong>Date:</strong> <span id="confirm-date"></span></p><p><strong>Invoice #:</strong> <span id="confirm-invoice"></span></p></div><div class="overflow-y-auto max-h-80 border rounded-lg"><table class="min-w-full"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Price</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Serials</th></tr></thead><tbody id="confirmation-list" class="divide-y"></tbody></table></div><div class="flex justify-end gap-4 mt-6"><button type="button" id="confirm-cancel-btn" class="bg-gray-300 px-6 py-2 rounded-lg">Cancel</button><form id="final-purchase-form" method="POST"><input type="hidden" name="submit_purchase" value="1"><button type="submit" class="bg-green-600 text-white font-bold px-6 py-2 rounded-lg">Confirm & Save</button></form></div></div></div>
 
 <script>
-// --- Global Scope Functions ---
-async function vendorAdded(vendorId, vendorName) { document.getElementById('vendor_id').add(new Option(vendorName, vendorId, true, true)); document.getElementById('page-modal').classList.remove('is-open'); }
+// --- 1. STATE MANAGEMENT FUNCTIONS ---
+// Save the Main Info (Vendor, Date, Invoice) to browser memory
+function saveMainInfo() {
+    sessionStorage.setItem('saved_vendor_id', document.getElementById('vendor_id').value);
+    sessionStorage.setItem('saved_purchase_date', document.getElementById('purchase_date').value);
+    sessionStorage.setItem('saved_invoice_number', document.getElementById('invoice_number').value);
+}
+
+// Restore Main Info from browser memory (runs on page load)
+function restoreMainInfo() {
+    if (sessionStorage.getItem('saved_vendor_id')) {
+        document.getElementById('vendor_id').value = sessionStorage.getItem('saved_vendor_id');
+    }
+    if (sessionStorage.getItem('saved_purchase_date')) {
+        document.getElementById('purchase_date').value = sessionStorage.getItem('saved_purchase_date');
+    }
+    if (sessionStorage.getItem('saved_invoice_number')) {
+        document.getElementById('invoice_number').value = sessionStorage.getItem('saved_invoice_number');
+    }
+}
+
+// Clear memory (runs after successful final submit)
+function clearMainInfo() {
+    sessionStorage.removeItem('saved_vendor_id');
+    sessionStorage.removeItem('saved_purchase_date');
+    sessionStorage.removeItem('saved_invoice_number');
+}
+
+// --- GLOBAL HELPERS ---
+async function vendorAdded(vendorId, vendorName) { 
+    document.getElementById('vendor_id').add(new Option(vendorName, vendorId, true, true)); 
+    document.getElementById('page-modal').classList.remove('is-open'); 
+    // Auto-save the new vendor to storage
+    saveMainInfo();
+}
 
 document.addEventListener('DOMContentLoaded', () => {
-    const pageModal = document.getElementById('page-modal'); const editModal = document.getElementById('edit-product-modal'); const confirmModal = document.getElementById('final-confirmation-modal');
-    const openModal = (modalEl) => modalEl.classList.add('is-open'); const closeModal = (modalEl) => modalEl.classList.remove('is-open');
+    // RESTORE DATA ON LOAD
+    restoreMainInfo();
+
+    const pageModal = document.getElementById('page-modal'); 
+    const editModal = document.getElementById('edit-product-modal'); 
+    const confirmModal = document.getElementById('final-confirmation-modal');
+    const openModal = (modalEl) => modalEl.classList.add('is-open'); 
+    const closeModal = (modalEl) => modalEl.classList.remove('is-open');
     
     document.getElementById('add-vendor-btn').onclick = () => { pageModal.querySelector('#modal-title').textContent = 'Add New Vendor'; pageModal.querySelector('#modal-iframe').src = 'add_vendor.php?context=modal'; openModal(pageModal); };
     document.getElementById('add-hierarchy-btn').onclick = () => { pageModal.querySelector('#modal-title').textContent = 'Product Hierarchy Management'; pageModal.querySelector('#modal-iframe').src = 'product_setup.php?context=modal'; openModal(pageModal); };
@@ -287,14 +326,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const populateSelect = (el, data, val, text) => { el.innerHTML = '<option value="">-- Select --</option>'; data.forEach(item => el.add(new Option(item[text], item[val]))); el.disabled = false; };
 
-    // Common fetch function for brands/models
     const fetchItems = async (type, id) => {
         const res = await fetch(`?action=get_lists&list=${type}&${type === 'brands' ? 'category_id' : 'brand_id'}=${id}`);
         const result = await res.json();
         return result.data || [];
     };
 
-    // Chained dropdown logic for both Main Form and Edit Modal
     const setupChainedSelects = (catEl, brandEl, modelEl) => {
         catEl.onchange = async () => {
             brandEl.disabled = modelEl.disabled = true;
@@ -313,13 +350,15 @@ document.addEventListener('DOMContentLoaded', () => {
     setupChainedSelects(document.getElementById('category_id'), document.getElementById('brand_id'), document.getElementById('model_id'));
     setupChainedSelects(document.getElementById('edit-category_id'), document.getElementById('edit-brand_id'), document.getElementById('edit-model_id'));
 
-    // Edit Button Logic (The FIX)
+    // --- TABLE BUTTON CLICKS ---
     document.getElementById('temp-product-tbody').onclick = async (e) => {
         const btn = e.target.closest('button'); if (!btn) return;
         const tempId = btn.dataset.id;
 
         if (btn.classList.contains('remove-temp-item-btn')) {
             if (!confirm('Are you sure?')) return;
+            // SAVE STATE BEFORE ACTION (Just in case logic changes later)
+            saveMainInfo(); 
             const res = await fetch(`?action=delete_temp_product&id=${tempId}`);
             if ((await res.json()).status === 'success') { 
                 document.getElementById(`temp-row-${tempId}`).remove(); 
@@ -338,11 +377,9 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('edit-warranty_period').value = data.warranty_period;
             document.getElementById('edit-serial_number').value = data.serial_number;
             
-            // Set Category
             const catSelect = document.getElementById('edit-category_id');
             catSelect.value = data.category_id;
 
-            // Manual step-by-step population to ensure dropdowns work correctly
             const brands = await fetchItems('brands', data.category_id);
             populateSelect(document.getElementById('edit-brand_id'), brands, 'brand_id', 'brand_name');
             document.getElementById('edit-brand_id').value = data.brand_id;
@@ -355,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Update Function
+    // --- UPDATE ITEM ---
     document.getElementById('edit-update-btn').onclick = async () => {
         const payload = {
             temp_id: document.getElementById('edit-temp-id').value,
@@ -367,12 +404,16 @@ document.addEventListener('DOMContentLoaded', () => {
             warranty_period: document.getElementById('edit-warranty_period').value,
             serial_number: document.getElementById('edit-serial_number').value,
         };
+        
+        // SAVE STATE BEFORE RELOAD
+        saveMainInfo();
+        
         const res = await fetch('?action=update_temp_product', { method: 'POST', body: JSON.stringify(payload) });
         const result = await res.json();
         if (result.status === 'success') location.reload(); else alert(result.message);
     };
 
-    // Add Function (Your original logic)
+    // --- ADD ITEM (MODIFIED) ---
     document.getElementById('add-product-to-list-btn').onclick = async () => {
         const payload = {
             vendor_id: document.getElementById('vendor_id').value,
@@ -386,11 +427,25 @@ document.addEventListener('DOMContentLoaded', () => {
             warranty_period: document.getElementById('warranty_period').value,
             serial_number: document.getElementById('serial_number').value,
         };
+
+        // Basic Validation
+        if(!payload.vendor_id || !payload.purchase_date || !payload.invoice_number) {
+            alert("Please fill in Vendor, Date, and Invoice Number first.");
+            return;
+        }
+
+        // SAVE STATE BEFORE RELOAD
+        saveMainInfo();
+
         const res = await fetch('?action=add_temp_product', { method: 'POST', body: JSON.stringify(payload) });
-        if ((await res.json()).status === 'success') location.reload(); else alert('Error adding product');
+        if ((await res.json()).status === 'success') {
+            location.reload(); 
+        } else {
+            alert('Error adding product');
+        }
     };
 
-    // Summary Confirmation (Your original logic)
+    // --- FINAL SUBMIT ---
     document.getElementById('final-submit-btn').onclick = () => {
         const rows = document.querySelectorAll('#temp-product-tbody tr');
         if (rows.length === 0) return alert("List is empty");
@@ -407,6 +462,11 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmList.innerHTML += `<tr><td class="px-4 py-2">${cells[0].innerHTML}</td><td class="px-4 py-2">${cells[1].textContent}</td><td class="px-4 py-2">${cells[2].textContent}</td><td class="px-4 py-2 text-xs">${cells[3].textContent}</td></tr>`;
         });
         openModal(confirmModal);
+    };
+
+    // --- ON SUCCESSFUL FORM SUBMIT, CLEAR DATA ---
+    document.getElementById('final-purchase-form').onsubmit = () => {
+        clearMainInfo(); // Transaction done, clear the saved data
     };
 });
 </script>
