@@ -53,7 +53,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
             echo "<tr class='hover:bg-gray-50 transition border-b border-gray-200'>";
             
             // Order No (Fixed width & Truncated with Title)
-            echo "<td class='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate max-w-[180px]' title='" . htmlspecialchars($row['Order_No']) . "'>" . htmlspecialchars($row['Order_No']) . "</td>";
+            echo "<td class='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate max-w-[350px]' title='" . htmlspecialchars($row['Order_No']) . "'>" . htmlspecialchars($row['Order_No']) . "</td>";
             
             // Client Info
             echo "<td class='px-6 py-4 whitespace-normal text-sm text-gray-700'>" . $clientInfo . "</td>";
@@ -120,7 +120,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
                     <table class="min-w-full divide-y divide-gray-200 table-fixed">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="w-[180px] px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order No</th>
+                                <th class="w-[350px] px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order No</th>
                                 <th class="w-auto px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Info</th>
                                 <th class="w-[150px] px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date</th>
                                 <th class="w-[140px] px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
