@@ -64,7 +64,7 @@ $result_items = $stmt_items->get_result();
     
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4">
         <div class="max-w-full sm:max-w-[70%]">
-            <h3 class="text-xl font-bold text-gray-800 break-all">Order #<?php echo htmlspecialchars($order['Order_No']); ?></h3>
+            <p class="text-xl font-bold text-gray-800 break-all">Order #<?php echo htmlspecialchars($order['Order_No']); ?></p>
             <p class="text-sm text-gray-500">Date: <?php echo date('M d, Y', strtotime($order['Order_Date'])); ?></p>
         </div>
         <div class="mt-2 sm:mt-0 text-right shrink-0">
