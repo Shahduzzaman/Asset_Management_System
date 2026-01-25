@@ -14,23 +14,18 @@ $page_title = "Add Products to Cart";
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title><?php echo htmlspecialchars($page_title); ?> - AMS</title>
 
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
-    <!-- Tailwind (cdn) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
     <style>
-        /* Custom scrollbar for WebKit browsers */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #555; }
 
-        /* Toast */
         .toast {
             visibility: hidden; min-width: 250px; margin-left: -125px;
             background-color: #333; color: #fff; text-align: center;
@@ -42,7 +37,6 @@ $page_title = "Add Products to Cart";
         .toast.error { background-color: #D9534F; }
         .toast.success { background-color: #16A34A; }
 
-        /* Serial UI */
         #serial-search { width: 100%; padding: .5rem; border: 1px solid #e5e7eb; border-radius: .375rem; }
         #serial-list { max-height: 180px; overflow-y: auto; padding: .375rem; border: 1px solid #e5e7eb; border-radius: .375rem; background: #fff; }
         .serial-item { display:flex; align-items:center; gap:.6rem; padding:.25rem .35rem; border-radius:.375rem; }
@@ -62,11 +56,9 @@ $page_title = "Add Products to Cart";
 <body class="bg-gray-100 font-sans leading-normal tracking-normal">
 
     <div class="p-6 md:p-10 max-w-5xl mx-auto">
-        <!-- Add to Cart Card -->
+
         <div class="bg-white rounded-lg shadow p-6 mb-8">
             <h2 class="text-lg font-semibold mb-4">Add Product to Cart</h2>
-
-            <!-- selection row -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Category</label>
@@ -96,7 +88,6 @@ $page_title = "Add Products to Cart";
                 </div>
             </div>
 
-            <!-- info row -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="space-y-4">
                     <div class="grid grid-cols-3 gap-2 bg-gray-50 p-3 rounded-md items-center">
@@ -125,7 +116,6 @@ $page_title = "Add Products to Cart";
                     </div>
                 </div>
 
-                <!-- serial UI -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Serial Number (Optional)</label>
 
@@ -155,7 +145,6 @@ $page_title = "Add Products to Cart";
             </div>
         </div>
 
-        <!-- Cart Card -->
         <div class="bg-white rounded-lg shadow p-6">
             <h2 class="text-lg font-semibold mb-4">Current Cart</h2>
 
@@ -165,7 +154,7 @@ $page_title = "Add Products to Cart";
                         <tr>
                             <th class="text-left p-3 text-xs text-gray-600">Product</th>
                             <th class="text-left p-3 text-xs text-gray-600">Serial</th>
-                            <th class="text-left p-3 text-xs text-gray-600">Warranty</th> <!-- NEW COLUMN -->
+                            <th class="text-left p-3 text-xs text-gray-600">Warranty</th>
                             <th class="text-right p-3 text-xs text-gray-600">Qty</th>
                             <th class="text-right p-3 text-xs text-gray-600">Unit</th>
                             <th class="text-right p-3 text-xs text-gray-600">Total</th>
@@ -185,7 +174,6 @@ $page_title = "Add Products to Cart";
             </div>
         </div>
 
-        <!-- Proceed button placed in page flow, right-aligned under Cart Card -->
         <div class="mt-4 flex justify-end">
             <a href="sold_product.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 inline-flex items-center">
                 <span class="mr-2">Proceed</span>
@@ -199,8 +187,6 @@ $page_title = "Add Products to Cart";
 
 <script>
 $(function(){
-
-    // Element refs
     const $cat = $('#product-category');
     const $brand = $('#product-brand');
     const $model = $('#product-model');
@@ -218,8 +204,7 @@ $(function(){
     const $toast = $('#toast-notification');
     const $cartBody = $('#cart-table-body');
 
-    let currentSerials = []; // [{sl_id, product_sl}]
-    // Helper: show toast
+    let currentSerials = []; // loaded serials for selected model
     function showToast(msg, type='error') {
         $toast.text(msg).removeClass('success error').addClass(type).addClass('show');
         setTimeout(()=> $toast.removeClass('show'), 3000);
@@ -235,7 +220,6 @@ $(function(){
         return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     }
 
-    // Reset helpers
     function resetFormKeepCategory() {
         $brand.prop('disabled', true).html('<option>-- Select Brand --</option>');
         $model.prop('disabled', true).html('<option>-- Select Model --</option>');
@@ -248,7 +232,6 @@ $(function(){
         updateSelectAllVisual(false);
     }
 
-    // Load brands when category changes
     $cat.on('change', function(){
         const catId = $(this).val();
         resetFormKeepCategory();
@@ -264,7 +247,6 @@ $(function(){
             }).fail(xhr => logError('Error loading brands', xhr));
     });
 
-    // Load models
     $brand.on('change', function(){
         const brandId = $(this).val();
         $model.prop('disabled', true).html('<option>Loading...</option>');
@@ -284,7 +266,6 @@ $(function(){
             }).fail(xhr => logError('Error loading models', xhr));
     });
 
-    // Model change: load stock, price, serials
     $model.on('change', function(){
         const modelId = $(this).val();
         $serialList.html('<div class="text-xs text-gray-500 p-2">Loading serials...</div>');
@@ -332,7 +313,6 @@ $(function(){
             });
     });
 
-    // Render serials (custom checkbox + label)
     function renderSerialList(arr) {
         if (!arr || arr.length === 0) {
             $serialList.html('<div class="text-xs text-gray-500 p-2">No available serials</div>');
@@ -349,7 +329,6 @@ $(function(){
         }).join('');
         $serialList.html(html);
 
-        // bind handlers
         $serialList.find('.checkbox-custom').on('click', function(){
             const slid = $(this).attr('data-slid');
             toggleSerialById(slid);
@@ -402,18 +381,15 @@ $(function(){
         else { $selectAllBox.removeClass('checked').attr('aria-checked','false'); $selectAllNative.prop('checked', false); }
     }
 
-    // Select all visible toggle
     $selectAllBox.on('click', function(){
         const isChecked = $(this).hasClass('checked');
         if (isChecked) {
-            // uncheck all visible
             $serialList.find('.serial-item').not('.hidden').each(function(){
                 $(this).find('.checkbox-custom.checked').removeClass('checked').attr('aria-pressed','false');
                 $(this).find('input.hidden-serial-input').remove();
             });
             updateSelectAllVisual(false);
         } else {
-            // check all visible
             $serialList.find('.serial-item').not('.hidden').each(function(){
                 const $box = $(this).find('.checkbox-custom');
                 const slid = $(this).attr('data-sl');
@@ -432,7 +408,6 @@ $(function(){
     });
     $selectAllBox.attr('tabindex', 0).on('keydown', function(e){ if (e.key===' '||e.key==='Enter'){ e.preventDefault(); $(this).trigger('click'); } });
 
-    // Search filter
     $serialSearch.on('input', function(){
         const term = String($(this).val()||'').trim().toLowerCase();
         if (!term) $serialList.find('.serial-item').removeClass('hidden');
@@ -445,7 +420,6 @@ $(function(){
         updateSelectAllVisual();
     });
 
-    // Add to cart click
     $addBtn.on('click', function(){
         const modelId = $model.val();
         if (!modelId) { showToast('Please select a product model.', 'error'); $model.focus(); return; }
@@ -472,12 +446,10 @@ $(function(){
             .done(d => {
                 if (d.status === 'success') {
                     showToast(d.message || 'Added', 'success');
-                    // reset
                     $model.val('').trigger('change');
                     $brand.val('');
                     $cat.val('');
                     $unit.val('');
-                    // reload cart
                     loadCart();
                 } else {
                     showToast(d.message || 'Failed to add item', 'error');
@@ -488,7 +460,6 @@ $(function(){
             .always(()=> { $addBtn.prop('disabled', false).html('<i class="fas fa-cart-plus mr-2"></i>Add to Cart'); });
     });
 
-    // Load cart
     function loadCart() {
         $cartBody.html('<tr><td colspan="6" class="text-center p-6 text-gray-500"><i class="fas fa-spinner fa-spin"></i></td></tr>');
         $.get('cart_ajax.php?action=get_cart_contents')
@@ -530,7 +501,6 @@ $(function(){
     }
 
 
-    // Remove handler (delegated)
     $cartBody.on('click', '.remove-cart-item', function(){
         const id = $(this).data('id');
         if (!id) return;
@@ -542,7 +512,7 @@ $(function(){
                 if (d.status === 'success') {
                     showToast(d.message || 'Removed', 'success');
                     loadCart();
-                    $model.trigger('change'); // refresh serial availability
+                    $model.trigger('change'); 
                 } else {
                     showToast(d.message || 'Failed to remove', 'error');
                     $btn.prop('disabled', false);
@@ -551,11 +521,9 @@ $(function(){
             .fail(xhr => { logError('Error removing item', xhr); $btn.prop('disabled', false); });
     });
 
-    // Utilities
     function escapeHtml(s){ if (s===undefined||s===null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
     function CSSescape(s){ return String(s).replace(/([ #;?%&,.+*~\':"!^$[\]()=>|\/@])/g,'\\$1'); }
 
-    // Initialize
     loadCart();
     updateSelectedCount();
     updateSelectAllVisual(false);
