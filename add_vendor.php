@@ -10,7 +10,6 @@ $errorMessage = '';
 $newVendorId = null;
 $newVendorName = '';
 
-// Check if the page is loaded in a modal context
 $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
 
 
@@ -57,7 +56,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <style> 
         body { font-family: 'Inter', sans-serif; } 
         <?php if ($isModal): ?>
-        /* Adjustments for running inside an iframe */
         body { background-color: #f9fafb; }
         html, body { height: 100%; overflow: auto; }
         <?php endif; ?>
