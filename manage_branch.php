@@ -1,19 +1,18 @@
 <?php
-ob_start(); // Technical Fix: Allows redirects to work on Linux
+ob_start();
 require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
-// Technical Fix: Compatibility for Linux SQL strict mode
+
 $conn->query("SET sql_mode=''");
 
-// --- START: ADMIN ROLE CHECK ---
 $user_role = 0;
 if(isset($_SESSION['user_role'])) {
     $user_role = (int)$_SESSION['user_role'];
 } else {
-    // Technical Fix: Table name lowercase 'users'
+
     $sql_role_check = "SELECT role FROM users WHERE user_id = ?";
     $stmt_role_check = $conn->prepare($sql_role_check);
     $stmt_role_check->bind_param("i", $current_user_id);
@@ -26,24 +25,20 @@ if(isset($_SESSION['user_role'])) {
     $stmt_role_check->close();
 }
 
-if ($user_role != 1) { // 1 = Admin role
+if ($user_role != 1) {
     $_SESSION['error_message'] = "Access Denied: You do not have permission to manage branches.";
     header("Location: dashboard.php");
     exit();
 }
-// --- END: ADMIN ROLE CHECK ---
 
-// --- Part 1: API Request Handler (AJAX) ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $response = ['status' => 'error', 'message' => 'Invalid request'];
 
-    // Action: Get details for a single branch
     if ($_GET['action'] === 'get_branch_details' && isset($_GET['id'])) {
         $branch_id = intval($_GET['id']);
         $data = null;
         
-        // Technical Fix: Table name lowercase 'branch'
         $sql = "SELECT branch_id, Name, Address, Email, Phone FROM branch WHERE branch_id = ?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $branch_id);
@@ -52,7 +47,6 @@ if (isset($_GET['action'])) {
         $stmt->close();
         
         if ($data) {
-            // Technical Fix: Table name lowercase 'users'
             $sql_users = "SELECT user_name, email FROM users WHERE branch_id_fk = ? AND is_deleted = FALSE AND status = 0";
             $stmt_users = $conn->prepare($sql_users);
             $stmt_users->bind_param("i", $branch_id);
@@ -67,10 +61,8 @@ if (isset($_GET['action'])) {
         }
     }
 
-    // Action: Update branch details
     if ($_GET['action'] === 'update_branch' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
-        // Technical Fix: Table name lowercase 'branch'
         $sql = "UPDATE branch SET Name=?, Address=?, Email=?, Phone=?, is_updated=TRUE WHERE branch_id=?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("ssssi", 
@@ -85,7 +77,6 @@ if (isset($_GET['action'])) {
         $stmt->close();
     }
     
-    // Action: Keep-alive ping
     if ($_GET['action'] === 'keep_alive') {
         $response = ['status' => 'success'];
     }
@@ -95,13 +86,11 @@ if (isset($_GET['action'])) {
     exit();
 }
 
-// --- Part 2: Fetch initial data for page load ---
-// Technical Fix: Table name lowercase 'branch'
 $branches_sql = "SELECT branch_id, Name, Address, Email, Phone FROM branch WHERE is_deleted = FALSE ORDER BY Name";
 $branches = $conn->query($branches_sql)->fetch_all(MYSQLI_ASSOC);
 $conn->close();
 
-$idleTimeout = 1800; // Original feature variable
+$idleTimeout = 1800;
 ?>
 
 <!DOCTYPE html>
@@ -204,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewModal = document.getElementById('view-details-modal');
     const allModals = [editModal, viewModal];
     
-    // Live Search Feature
     const searchBox = document.getElementById('search-box');
     const branchTableBody = document.querySelector('#branch-table tbody');
     const filterTable = () => {
@@ -318,7 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { alert('Error updating: ' + error.message); }
     });
 
-    // Session Timeout Logic Restored
     (function() {
         const sessionModal = document.getElementById('session-timeout-modal');
         if (!sessionModal) return; 
