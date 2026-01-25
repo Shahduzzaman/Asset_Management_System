@@ -1,31 +1,27 @@
 <?php
-ob_start(); // Technical Fix: Ensures headers/redirects work on Linux
+ob_start();
 require_once 'session_guard.php';
 $current_user_id = $_SESSION['user_id'];
-$user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0; // Get user role
-// --- END: SESSION & SECURITY CHECKS ---
+$user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0; 
+
 
 require_once 'connection.php';
-// Technical Fix: Compatibility for Linux SQL strict mode
+
 $conn->query("SET sql_mode=''");
 
-// --- Part 1: API Request Handler (AJAX) ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $response = ['status' => 'error', 'message' => 'Invalid request'];
 
-    // Action: Get details for a single client (Head or Branch)
     if ($_GET['action'] === 'get_client_details' && isset($_GET['id']) && isset($_GET['type'])) {
         $id = intval($_GET['id']);
         $type = $_GET['type'];
         
         if ($type === 'head') {
-            // Technical Fix: Table name lowercase 'client_head'
             $sql = "SELECT *, 'Head Office' as type_name FROM client_head WHERE client_head_id = ?";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("i", $id);
-        } else { // 'branch'
-            // Technical Fix: Table names lowercase 'client_branch', 'client_head'
+        } else {
             $sql = "SELECT cb.*, ch.Company_Name as parent_company_name, 'Branch Office' as type_name 
                     FROM client_branch cb 
                     JOIN client_head ch ON cb.client_head_id_fk = ch.client_head_id 
@@ -41,18 +37,15 @@ if (isset($_GET['action'])) {
         else $response['message'] = 'Client not found.';
     }
 
-    // Action: Update a client (Admin Only)
     if ($_GET['action'] === 'update_client' && $_SERVER['REQUEST_METHOD'] === 'POST' && $user_role === 1) {
         $data = json_decode(file_get_contents('php://input'), true);
         
         try {
             if ($data['type'] === 'head') {
-                // Technical Fix: Table name lowercase 'client_head'
                 $sql = "UPDATE client_head SET Company_Name=?, Department=?, Contact_Person=?, Contact_Number=?, Address=?, is_updated=TRUE WHERE client_head_id=?";
                 $stmt = $conn->prepare($sql);
                 $stmt->bind_param("sssssi", $data['Company_Name'], $data['Department'], $data['Contact_Person'], $data['Contact_Number'], $data['Address'], $data['id']);
-            } else { // 'branch'
-                // Technical Fix: Table name lowercase 'client_branch'
+            } else {
                 $sql = "UPDATE client_branch SET client_head_id_fk=?, Branch_Name=?, Contact_Person1=?, Contact_Number1=?, Contact_Person2=?, Contact_Number2=?, Zone=?, Address=?, is_updated=TRUE WHERE client_branch_id=?";
                 $stmt = $conn->prepare($sql);
                 $stmt->bind_param("isssssssi", $data['client_head_id_fk'], $data['Branch_Name'], $data['Contact_Person1'], $data['Contact_Number1'], $data['Contact_Person2'], $data['Contact_Number2'], $data['Zone'], $data['Address'], $data['id']);
@@ -68,17 +61,14 @@ if (isset($_GET['action'])) {
         }
     }
     
-    // Action: Soft delete a client (Admin Only)
     if ($_GET['action'] === 'delete_client' && $_SERVER['REQUEST_METHOD'] === 'POST' && $user_role === 1) {
         $data = json_decode(file_get_contents('php://input'), true);
         $id = intval($data['id']);
         $type = $data['type'];
         
         if ($type === 'head') {
-            // Technical Fix: Table name lowercase 'client_head'
             $sql = "UPDATE client_head SET is_deleted = TRUE WHERE client_head_id = ?";
-        } else { // 'branch'
-            // Technical Fix: Table name lowercase 'client_branch'
+        } else {
             $sql = "UPDATE client_branch SET is_deleted = TRUE WHERE client_branch_id = ?";
         }
         $stmt = $conn->prepare($sql);
@@ -91,10 +81,8 @@ if (isset($_GET['action'])) {
         $stmt->close();
     }
     
-    // Action: Search Head Office (for Edit Branch modal)
     if ($_GET['action'] === 'search_head_office' && isset($_GET['query'])) {
         $query = trim($_GET['query']) . '%';
-        // Technical Fix: Table name lowercase 'client_head'
         $sql = "SELECT client_head_id, Company_Name, Contact_Person FROM client_head WHERE Company_Name LIKE ? AND is_deleted = FALSE LIMIT 10";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("s", $query);
@@ -108,10 +96,8 @@ if (isset($_GET['action'])) {
     exit();
 }
 
-// --- Part 2: Fetch initial data for page load ---
 header('Content-Type: text/html');
 
-// Technical Fix: Table names lowercase 'client_head', 'client_branch'
 $client_list_sql = "
     (SELECT 
         client_head_id as id, 
@@ -275,7 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewModal = document.getElementById('view-details-modal');
     const allModals = [viewModal];
     
-    // --- Admin-only variables ---
     const isAdmin = <?php echo $user_role === 1 ? 'true' : 'false'; ?>;
     let editModal, deleteModal, editSearchBox, editResultsBox, editHiddenInput, editClearBtn;
     if (isAdmin) {
@@ -289,7 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
         editClearBtn = document.getElementById('edit-clear-search-btn');
     }
     
-    // --- Live Search ---
     const searchBox = document.getElementById('search-box');
     const clientTableBody = document.querySelector('#client-table tbody');
     const filterTable = () => {
@@ -302,12 +286,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     searchBox.addEventListener('input', filterTable);
 
-    // --- Modal Controls ---
     const openModal = modalEl => modalEl.classList.add('is-open');
     const closeModal = modalEl => modalEl.classList.remove('is-open');
     allModals.forEach(modal => modal.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', () => closeModal(modal))));
 
-    // --- Global Message Function ---
     function showGlobalMessage(message, isSuccess = true) {
         const messageDiv = document.getElementById('global-message');
         const alertClass = isSuccess ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700';
@@ -315,7 +297,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => messageDiv.innerHTML = '', 5000);
     }
     
-    // --- Function to open View Modal (Global Scope) ---
     async function openViewModal(id, type) {
         try {
             const res = await fetch(`?action=get_client_details&id=${id}&type=${type}`);
@@ -334,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p><strong>Contact Person:</strong> ${data.Contact_Person || 'N/A'}</p>
                     <p><strong>Contact Number:</strong> ${data.Contact_Number || 'N/A'}</p>
                     <p><strong>Address:</strong> ${data.Address || 'N/A'}</p>`;
-            } else { // branch
+            } else {
                 body.innerHTML = `
                     <p><strong>Client Type:</strong> <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">${data.type_name}</span></p>
                     <p><strong>Branch Name:</strong> ${data.Branch_Name}</p>
@@ -352,7 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Admin-Only Function Definitions ---
     async function openEditModal(id, type) {
         if (!isAdmin) return;
         try {
@@ -376,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('edit-Contact_Person').value = data.Contact_Person;
                 document.getElementById('edit-Contact_Number').value = data.Contact_Number;
                 document.getElementById('edit-Address-Head').value = data.Address;
-            } else { // branch
+            } else {
                 document.getElementById('edit-title').textContent = "Edit Branch Office";
                 headForm.classList.add('hidden');
                 branchForm.classList.remove('hidden');
@@ -400,7 +380,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Table Click Event Handler (Unified) ---
     clientTableBody.addEventListener('click', async e => {
         const row = e.target.closest('tr');
         if (!row || !row.dataset.id) return;
@@ -409,9 +388,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const actionButton = e.target.closest('.action-btn');
         
-        if (actionButton) { // An action button was clicked
-            e.stopPropagation(); // Stop row click
-            if (!isAdmin) return; // Ignore if not admin
+        if (actionButton) {
+            e.stopPropagation();
+            if (!isAdmin) return;
             
             if (actionButton.classList.contains('edit-btn')) {
                 openEditModal(id, type);
@@ -421,14 +400,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 openModal(deleteModal);
             }
         } else {
-            // No action button, just open view modal
             openViewModal(id, type);
         }
     });
 
-    // --- Admin-Only Listeners (Must be inside if(isAdmin) check) ---
     if (isAdmin) {
-        // Search logic for edit modal
         let editSearchTimeout;
         editSearchBox.addEventListener('input', () => {
             const query = editSearchBox.value.trim();
@@ -467,7 +443,6 @@ document.addEventListener('DOMContentLoaded', () => {
             editResultsBox.classList.add('hidden'); editSearchBox.focus();
         });
 
-        // Save changes button
         document.getElementById('edit-save-btn').addEventListener('click', async () => {
             const id = document.getElementById('edit-client-id').value;
             const type = document.getElementById('edit-client-type').value;
@@ -481,7 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     Contact_Number: document.getElementById('edit-Contact_Number').value,
                     Address: document.getElementById('edit-Address-Head').value
                 };
-            } else { // branch
+            } else {
                 payload = { ...payload,
                     client_head_id_fk: document.getElementById('edit-client_head_id_fk').value,
                     Branch_Name: document.getElementById('edit-Branch_Name').value,
@@ -502,28 +477,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeModal(editModal);
                 showGlobalMessage('Client updated successfully!');
                 
-                // Update table row
                 const row = document.querySelector(`tr[data-id="${id}"][data-type="${type}"]`);
                 if (row) {
                     if (type === 'head') {
                         row.querySelector('.client-name').textContent = payload.Company_Name;
                         row.querySelector('.department-zone').textContent = payload.Department; 
                         row.querySelector('.address').textContent = payload.Address;
-                    } else { // branch
+                    } else {
                         row.querySelector('.client-name').textContent = payload.Branch_Name;
                         row.querySelector('.parent-name').textContent = document.getElementById('edit-head-office-search').value;
                         row.querySelector('.department-zone').textContent = payload.Zone; 
-                        window.location.reload(); // Reload to ensure data consistency
+                        window.location.reload();
                         row.querySelector('.address').textContent = payload.Address;
                     }
                 }
-                filterTable(); // Re-apply search
+                filterTable();
             } catch (error) {
                 alert('Error updating: ' + error.message);
             }
         });
 
-        // Delete confirm button
         document.getElementById('delete-confirm-btn').addEventListener('click', async () => {
             const id = document.getElementById('delete-client-id').value;
             const type = document.getElementById('delete-client-type').value;
