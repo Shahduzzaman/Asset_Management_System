@@ -3,30 +3,23 @@ ob_start();
 require_once 'session_guard.php';
 $current_user_id = $_SESSION['user_id'];
 
-require_once "connection.php"; // expects $conn being a mysqli object
+require_once "connection.php"; 
 
-// Error message handling
 $errorMessage = '';
 if (isset($_SESSION['error_message'])) {
     $errorMessage = $_SESSION['error_message'];
     unset($_SESSION['error_message']);
 }
 
-// Session values used in the layout
+
 $user_id   = (int) ($_SESSION['user_id'] ?? 0);
 $user_name = htmlspecialchars($_SESSION["user_name"] ?? 'User');
-$user_role = isset($_SESSION['user_role']) ? (int) $_SESSION['user_role'] : 0; // 1 = Admin
+$user_role = isset($_SESSION['user_role']) ? (int) $_SESSION['user_role'] : 0;
 
-// Company info
 $company_name = "Protection One (Pvt.) Ltd.";
 $logo_url = "images/logo.png";
-$topbarHeight = 64; // px
+$topbarHeight = 64; 
 
-// --------------------------
-// Dashboard data preparation
-// --------------------------
-
-// 1) Ensure branch in session (if not, load from users.branch_id_fk)
 if (!isset($_SESSION['branch_id'])) {
     $stmt = $conn->prepare("SELECT branch_id_fk FROM users WHERE user_id = ? LIMIT 1");
     $stmt->bind_param("i", $user_id);
@@ -38,7 +31,6 @@ if (!isset($_SESSION['branch_id'])) {
 }
 $user_branch = isset($_SESSION['branch_id']) ? (int) $_SESSION['branch_id'] : null;
 
-// 2) Branch name (for display) — admins see "All Branches"
 $branch_name = "All Branches";
 if ($user_role !== 1 && $user_branch > 0) {
     $stmt = $conn->prepare("SELECT Name FROM branch WHERE branch_id = ? LIMIT 1");
@@ -51,7 +43,6 @@ if ($user_role !== 1 && $user_branch > 0) {
 
 $applyBranchFilter = ($user_role !== 1 && $user_branch > 0);
 
-// 3) Total Sales (count of sold_product rows, non-admins filtered by creator's branch)
 if ($applyBranchFilter) {
     $sql = "
         SELECT COUNT(sp.sold_product_id) AS cnt
@@ -71,8 +62,6 @@ $stmt->fetch();
 $stmt->close();
 $total_sales = (int) ($total_sales ?: 0);
 
-// 4) Total Returns (sales_return + purchase_return), scoped similarly
-// sales_return
 if ($applyBranchFilter) {
     $sql = "
         SELECT COUNT(sr.sales_return_id) AS cnt
@@ -92,7 +81,6 @@ $stmt->fetch();
 $stmt->close();
 $sales_return_count = (int) ($sales_return_count ?: 0);
 
-// purchase_return
 if ($applyBranchFilter) {
     $sql = "
         SELECT COUNT(pr.purchase_return_id) AS cnt
@@ -114,7 +102,6 @@ $purchase_return_count = (int) ($purchase_return_count ?: 0);
 
 $total_returns = $sales_return_count + $purchase_return_count;
 
-// 5) Total Stock (Serialized + Non-serialized)
 if ($applyBranchFilter) {
     $sql = "
         SELECT COUNT(*) AS cnt
@@ -145,7 +132,6 @@ $stmt->fetch();
 $stmt->close();
 $serialized_in_stock = (int) ($serialized_in_stock ?: 0);
 
-// Non-serialized calculation
 if ($applyBranchFilter) {
     $sql = "SELECT IFNULL(SUM(pp.quantity),0) AS purchased_qty FROM purchased_products pp WHERE pp.is_deleted = 0 AND pp.branch_id_fk = ?";
     $stmt = $conn->prepare($sql);
@@ -174,8 +160,6 @@ $stmt->close();
 
 $total_stock_items = $serialized_in_stock + ($non_serial_purchased - $non_serial_sold);
 
-// 6) Category-wise totals
-// 6) Category-wise totals
 $categoryStocks = [];
 
 $catSql = "SELECT category_id, category_name FROM categories WHERE is_deleted = 0 ORDER BY category_name";
@@ -184,8 +168,6 @@ if ($res = $conn->query($catSql)) {
     while ($cat = $res->fetch_assoc()) {
 
         $cid = (int)$cat['category_id'];
-
-        // ---------- Purchased quantity ----------
         if ($applyBranchFilter) {
             $sql = "
                 SELECT IFNULL(SUM(pp.quantity),0) AS total
@@ -213,8 +195,6 @@ if ($res = $conn->query($catSql)) {
         $stmt->close();
         $purchasedQty = (int)$purchasedQty;
 
-
-        // ---------- Sold quantity ----------
         if ($applyBranchFilter) {
             $sql = "
                 SELECT IFNULL(SUM(sp.Quantity),0) AS total
@@ -245,8 +225,6 @@ if ($res = $conn->query($catSql)) {
         $stmt->close();
         $soldQty = (int)$soldQty;
 
-
-        // ---------- Final stock ----------
         $categoryStocks[] = [
             'category_id'   => $cid,
             'category_name' => $cat['category_name'],
@@ -263,7 +241,6 @@ if ($res = $conn->query($catSql)) {
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Dashboard — <?php echo htmlspecialchars($company_name); ?></title>
 
-<!-- Tailwind CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -278,17 +255,15 @@ if ($res = $conn->query($catSql)) {
     .sidebar-collapsed { width: 5rem !important; }
     .sidebar-expanded { width: 14rem !important; }
     .topbar-content { display:flex; align-items:center; height:var(--topbar-h); }
-    /* smaller default link text for consistency */
-    .sidebar .link-text, .sidebar #sidebarLabel { font-size: 0.80rem; } /* ~ text-xs */
+    .sidebar .link-text, .sidebar #sidebarLabel { font-size: 0.80rem; } 
 </style>
 </head>
 <body class="bg-gray-100">
 
-<!-- Top Navbar -->
 <header class="fixed top-0 left-0 right-0 z-40 bg-white shadow-sm border-b">
   <div class="topbar-content px-4 justify-between">
     <div class="flex items-center gap-3">
-      <!-- Global sidebar toggle -->
+
       <button id="globalSidebarToggle" class="p-2 rounded-md hover:bg-gray-100" aria-label="Toggle sidebar" title="Toggle sidebar">
         <svg id="globalSidebarToggleIcon" class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
@@ -304,7 +279,6 @@ if ($res = $conn->query($catSql)) {
       </a>
     </div>
 
-    <!-- User dropdown -->
     <div class="flex items-center gap-4">
       <div class="relative" id="userDropdownWrap">
         <button id="userDropdownBtn" class="flex items-center gap-3 text-sm px-3 py-2 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-indigo-300" aria-expanded="false" aria-haspopup="true">
@@ -323,12 +297,9 @@ if ($res = $conn->query($catSql)) {
   </div>
 </header>
 
-<!-- spacer -->
 <div style="height: var(--topbar-h);"></div>
 
 <div class="app-shell">
-
-  <!-- Sidebar -->
   <aside id="sidebar"
          class="sidebar-transition sidebar-expanded sidebar p-3 sidebar-scroll bg-white border-r flex flex-col"
          style="width:14rem; min-width:5rem; max-width:22rem; overflow:hidden;">
@@ -486,7 +457,6 @@ if ($res = $conn->query($catSql)) {
   </aside>
 
 
-  <!-- Main Content -->
   <main id="mainContent" style="flex:1; min-width:0; overflow:auto;">
       <?php if (!empty($errorMessage)): ?>
           <div id="error-alert-box" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative m-4" role="alert">
@@ -494,7 +464,6 @@ if ($res = $conn->query($catSql)) {
           </div>
       <?php endif; ?>
 
-      <!-- Updated Welcome Card (overview) -->
       <div id="welcomeCard" class="m-4 bg-white rounded-lg shadow p-8 h-[calc(100vh - var(--topbar-h) - 32px)] overflow-auto">
 
         <h2 class="text-2xl font-bold text-gray-800 mb-1">
@@ -543,14 +512,12 @@ if ($res = $conn->query($catSql)) {
 
       </div>
 
-      <!-- iframe loader -->
       <div id="frameWrap" class="hidden" style="height: calc(100vh - var(--topbar-h));">
           <iframe id="appFrame" name="appFrame" src="about:blank" title="Application Frame" frameborder="0"></iframe>
       </div>
   </main>
 </div>
 
-<!-- Mobile slide-over sidebar (unchanged) -->
 <div id="mobileSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r p-4 transform -translate-x-full transition-transform md:hidden overflow-auto">
   <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
@@ -573,7 +540,6 @@ if ($res = $conn->query($catSql)) {
   </nav>
 </div>
 
-<!-- JS (unchanged logic) -->
 <script>
 (function(){
     const sidebar = document.getElementById('sidebar');
@@ -587,10 +553,10 @@ if ($res = $conn->query($catSql)) {
     const globalToggleIcon = document.getElementById('globalSidebarToggleIcon');
     const STORAGE_KEY = 'ams_sidebar_expanded';
 
-    // 1. New function to toggle submenus
+
     window.toggleSubmenu = function(menuId, btn) {
         const menu = document.getElementById(menuId);
-        const icon = btn.querySelector('svg:last-child'); // The chevron
+        const icon = btn.querySelector('svg:last-child'); 
         
         if (menu.classList.contains('hidden')) {
             menu.classList.remove('hidden');
@@ -610,18 +576,16 @@ if ($res = $conn->query($catSql)) {
         if (expanded) {
             sidebar.classList.remove('sidebar-collapsed');
             sidebar.classList.add('sidebar-expanded');
-            // Show all link-text elements
             document.querySelectorAll('.link-text').forEach(el => el.classList.remove('hidden'));
             document.getElementById('sidebarLabel').classList.remove('hidden');
             globalToggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>';
         } else {
             sidebar.classList.add('sidebar-collapsed');
             sidebar.classList.remove('sidebar-expanded');
-            // Hide all link-text elements
+
             document.querySelectorAll('.link-text').forEach(el => el.classList.add('hidden'));
             document.getElementById('sidebarLabel').classList.add('hidden');
-            // Note: When collapsed, the submenus are still functionally there, 
-            // but the text is hidden. The icons remain to click.
+
             globalToggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6l12 6-12 6"/>';
         }
     }
@@ -659,18 +623,14 @@ if ($res = $conn->query($catSql)) {
 
     function setActiveLink(target) {
         links.forEach(a => {
-            // Remove active styles from all
             a.classList.remove('bg-indigo-50', 'text-indigo-700', 'font-semibold');
             
-            // Check if this is the active link
             if (a.dataset && a.dataset.target === target) {
                 a.classList.add('bg-indigo-50', 'text-indigo-700', 'font-semibold');
-                
-                // NEW: Auto-expand the parent submenu
+
                 const parentGroup = a.closest('div[id^="submenu-"]');
                 if (parentGroup && parentGroup.classList.contains('hidden')) {
                     parentGroup.classList.remove('hidden');
-                    // Find the toggle button associated with this menu (it's the previous element usually)
                     const triggerBtn = parentGroup.previousElementSibling;
                     if(triggerBtn) {
                          const icon = triggerBtn.querySelector('svg:last-child');
