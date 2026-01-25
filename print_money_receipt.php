@@ -1,5 +1,4 @@
 <?php
-// print_money_receipt.php
 require_once 'session_guard.php';
 require_once 'connection.php';
 
@@ -10,9 +9,6 @@ if (!isset($_GET['id'])) {
 $payment_id = (int)$_GET['id'];
 $is_print = isset($_GET['print']) && $_GET['print'] == 'true';
 
-/* ---------------------------------------
-   Amount in Words Function
------------------------------------------ */
 function numberToWordsBD($number) {
     $words = array(0 => 'Zero', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four', 5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine', 10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen', 14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen', 18 => 'Eighteen', 19 => 'Nineteen', 20 => 'Twenty', 30 => 'Thirty', 40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty', 70 => 'Seventy', 80 => 'Eighty', 90 => 'Ninety');
     
@@ -25,9 +21,6 @@ function numberToWordsBD($number) {
     return numberToWordsBD(floor($number / 10000000)) . " Crore" . (($number % 10000000 != 0) ? " " . numberToWordsBD($number % 10000000) : "");
 }
 
-/* ---------------------------------------
-   Fetch Payment & Invoice Details
------------------------------------------ */
 $sql = "SELECT p.*, 
         i.Invoice_No, 
         i.IncludingTax_TotalPrice as Invoice_Total,
@@ -48,14 +41,12 @@ $data = $stmt->get_result()->fetch_assoc();
 
 if (!$data) { die("Payment Receipt not found."); }
 
-// Determine Client Name & Address
 $client_name = !empty($data['Branch_Name']) ? $data['Branch_Name'] : $data['Company_Name'];
 if (!empty($data['Branch_Name']) && !empty($data['Company_Name'])) {
     $client_name = $data['Company_Name'] . ' - ' . $data['Branch_Name'];
 }
 $client_address = !empty($data['Branch_Addr']) ? $data['Branch_Addr'] : $data['Head_Addr'];
 
-// Calculate Due
 $sql_due = "SELECT SUM(amount) as total_paid FROM payments WHERE invoice_id_fk = ?";
 $stmt_due = $conn->prepare($sql_due);
 $stmt_due->bind_param("i", $data['invoice_id_fk']);
@@ -230,8 +221,6 @@ $print_time = date("d-M-Y h:i A");
 <?php if($is_print): ?>
 <script>
     window.onload = function() {
-        // FORCE the document title to be the Receipt Number right before printing
-        // This ensures the "Save as PDF" filename is correct even inside iframes
         document.title = "<?php echo htmlspecialchars($data['money_receipt_no']); ?>";
         
         setTimeout(function(){ 
