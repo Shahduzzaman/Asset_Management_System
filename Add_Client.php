@@ -3,25 +3,20 @@ ob_start();
 require_once 'session_guard.php';
 require_once 'connection.php';
 
-// Enable error reporting to prevent blank pages and see database errors
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $current_user_id = $_SESSION['user_id'];
 $idleTimeout = 1800; 
 
-// --- START: FLASH MESSAGE HANDLING ---
 $successMessage = $_SESSION['successMessage'] ?? '';
 $errorMessage = $_SESSION['errorMessage'] ?? '';
 unset($_SESSION['successMessage'], $_SESSION['errorMessage']);
-// --- END: FLASH MESSAGE HANDLING ---
 
-// --- Part 1: API Request Handler (AJAX) ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     try {
         if ($_GET['action'] === 'search_head_office' && isset($_GET['query'])) {
             $query = trim($_GET['query']) . '%';
-            // Table name updated to lowercase 'client_head'
             $sql = "SELECT client_head_id, Company_Name, Department FROM client_head WHERE Company_Name LIKE ? AND is_deleted = FALSE LIMIT 10";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("s", $query);
@@ -39,7 +34,6 @@ if (isset($_GET['action'])) {
     }
 }
 
-// --- Part 2: Handle Form Submissions (POST) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     try {
         $action = $_POST['action'] ?? '';
@@ -54,8 +48,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if (empty($company_name)) {
                 throw new Exception("Company Name is required.");
             }
-
-            // Table name updated to lowercase 'client_head'
             $sql = "INSERT INTO client_head (Company_Name, Department, Contact_Person, Contact_Number, Address, created_by) VALUES (?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("sssssi", $company_name, $department, $contact_person, $contact_number, $address, $current_user_id);
@@ -80,7 +72,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 throw new Exception("Head Office selection and Branch Name are required.");
             }
 
-            // Table name updated to lowercase 'client_branch'
             $sql = "INSERT INTO client_branch (client_head_id_fk, Branch_Name, Contact_Person1, Contact_Number1, Contact_Person2, Contact_Number2, Zone, Address, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("isssssssi", $client_head_id_fk, $branch_name, $cp1, $cn1, $cp2, $cn2, $zone, $address, $current_user_id);
@@ -182,7 +173,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // Tab Switching
     const tabHead = document.getElementById('tab-head');
     const tabBranch = document.getElementById('tab-branch');
     const headForm = document.getElementById('head-form');
@@ -197,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tabBranch.className = 'py-3 px-6 tab-btn-active'; tabHead.className = 'py-3 px-6 tab-btn-inactive';
     };
 
-    // Search
+
     const searchBox = document.getElementById('head-office-search');
     const resultsBox = document.getElementById('search-results');
     const hiddenInput = document.getElementById('client_head_id_fk');
@@ -230,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearBtn.classList.add('hidden');
     };
 
-    // Session Timer
+
     let timeoutId, countdownInterval;
     const idleTime = <?php echo $idleTimeout; ?> * 1000;
     const modal = document.getElementById('session-timeout-modal');
