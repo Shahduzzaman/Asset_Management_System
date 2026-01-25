@@ -1,12 +1,11 @@
 <?php
-// view_paid_invoice.php
+
 require_once 'session_guard.php';
 require_once 'connection.php';
 
 if (!isset($_GET['id'])) exit('Invalid Request');
 $invoice_id = (int)$_GET['id'];
 
-// 1. Fetch Invoice & Client Info
 $sql = "SELECT i.*, 
         ch.Company_Name, ch.Address as Head_Addr, ch.Contact_Number as Head_Phone,
         cb.Branch_Name, cb.Address as Branch_Addr, cb.Contact_Number1 as Branch_Phone,
@@ -24,12 +23,10 @@ $inv = $stmt->get_result()->fetch_assoc();
 
 if (!$inv) exit('<div class="p-4 text-red-500">Invoice not found.</div>');
 
-// Resolve Client Info
 $client_name = !empty($inv['Branch_Name']) ? $inv['Branch_Name'] : $inv['Company_Name'];
 $client_addr = !empty($inv['Branch_Addr']) ? $inv['Branch_Addr'] : $inv['Head_Addr'];
 $client_phone = !empty($inv['Branch_Phone']) ? $inv['Branch_Phone'] : $inv['Head_Phone'];
 
-// Status Badge Logic
 $status_badges = [
     0 => '<span class="bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded">Due</span>',
     1 => '<span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded">Partially Paid</span>',
@@ -37,7 +34,6 @@ $status_badges = [
 ];
 $status_html = $status_badges[$inv['status']] ?? 'Unknown';
 
-// 2. Fetch Sold Products (Items)
 $sql_items = "SELECT sp.*, m.model_name, b.brand_name 
               FROM sold_product sp
               LEFT JOIN models m ON sp.model_id_fk = m.model_id
@@ -48,14 +44,12 @@ $stmt_items->bind_param("i", $invoice_id);
 $stmt_items->execute();
 $res_items = $stmt_items->get_result();
 
-// 3. Fetch Payment History
 $sql_pay = "SELECT * FROM payments WHERE invoice_id_fk = ? ORDER BY payment_date DESC";
 $stmt_pay = $conn->prepare($sql_pay);
 $stmt_pay->bind_param("i", $invoice_id);
 $stmt_pay->execute();
 $res_pay = $stmt_pay->get_result();
 
-// Calc Totals
 $total_paid = 0;
 ?>
 
