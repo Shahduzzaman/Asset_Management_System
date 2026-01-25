@@ -6,17 +6,13 @@ $current_user_name = $_SESSION['user_name'] ?? 'User';
 $current_user_branch_id = $_SESSION['branch_id'];
 $current_user_branch_name = $_SESSION['branch_name'];
 
-require_once 'connection.php'; // defines $conn (MySQLi)
+require_once 'connection.php';
 
-
-// --- Helper function: safe table existence check for mysqli ---
 function tableExists($conn, $tableName) {
-    // validate table name: allow only letters, numbers, underscore
     if (!preg_match('/^[A-Za-z0-9_]+$/', $tableName)) {
         return false;
     }
 
-    // escape the table name just in case (backticks)
     $safeName = $conn->real_escape_string($tableName);
     $sql = "SHOW TABLES LIKE '" . $safeName . "'";
     $res = $conn->query($sql);
@@ -29,13 +25,11 @@ function tableExists($conn, $tableName) {
 
 $has_b2b_table = tableExists($conn, 'branch_to_branch');
 
-// --- Part 1: AJAX HANDLER ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $response = ['status' => 'error', 'message' => 'Invalid request'];
 
     try {
-        // --- Get Branches ---
         if ($_GET['action'] === 'get_branches') {
             $stmt = $conn->prepare("SELECT branch_id, Name AS branch_name 
                                     FROM branch 
@@ -50,7 +44,6 @@ if (isset($_GET['action'])) {
             $response = ['status' => 'success', 'branches' => $branches];
         }
 
-        // --- Search Product by Serial ---
         elseif ($_GET['action'] === 'search_product_sl' && isset($_GET['query'])) {
             $query = trim($_GET['query']) . '%';
             $sql = "
@@ -74,7 +67,6 @@ if (isset($_GET['action'])) {
             $response = ['status' => 'success', 'products' => $products];
         }
 
-        // --- Submit Transfer ---
         elseif ($_GET['action'] === 'submit_transfer' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $data = json_decode(file_get_contents('php://input'), true);
             $product_sl_id = $data['product_sl_id'] ?? null;
@@ -89,7 +81,6 @@ if (isset($_GET['action'])) {
 
             $conn->begin_transaction();
 
-            // Check product status
             $sql = "
                 SELECT sl.sl_id, sl.status, pp.branch_id_fk
                 FROM product_sl AS sl
@@ -142,7 +133,6 @@ if (isset($_GET['action'])) {
             $response = ['status' => 'success', 'message' => 'Product successfully sent for transfer!'];
         }
 
-        // --- Keep Session Alive ---
         elseif ($_GET['action'] === 'keep_alive') {
             $response = ['status' => 'success', 'message' => 'Session extended.'];
         }
