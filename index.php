@@ -4,7 +4,6 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// If the user is already logged in, redirect to dashboard
 if (isset($_SESSION["user_id"])) {
     header("Location: dashboard.php");
     exit();
@@ -12,7 +11,6 @@ if (isset($_SESSION["user_id"])) {
 
 $errorMessage = '';
 
-// Normalize logout / redirect reasons
 $reason = $_GET['reason'] ?? '';
 
 switch ($reason) {
@@ -29,7 +27,6 @@ switch ($reason) {
         break;
 }
 
-// Handle login submission
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     require_once 'connection.php';
@@ -74,7 +71,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 if (password_verify($password, $password_hash)) {
 
-                    // Secure session handling
                     session_regenerate_id(true);
 
                     $_SESSION['user_id']       = $user_id;
@@ -187,7 +183,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         pwd.type = pwd.type === 'password' ? 'text' : 'password';
     });
 
-    // Clean URL after showing message
     if (window.location.search.includes('reason=')) {
         const cleanUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, '', cleanUrl);
