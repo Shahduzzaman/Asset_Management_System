@@ -5,7 +5,6 @@ $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
 
-// --- NEW: Fetch the current user's branch ID ---
 $current_user_branch_id = null;
 $sql_branch = "SELECT branch_id_fk FROM users WHERE user_id = ?";
 $stmt_branch = $conn->prepare($sql_branch);
@@ -17,16 +16,13 @@ if ($stmt_branch->execute()) {
     }
 }
 $stmt_branch->close();
-// --- END: Fetch user's branch ID ---
 
 
-header('Content-Type: application/json'); // Set header for all API responses
+header('Content-Type: application/json');
 
-// --- Part 1: API Request Handler (AJAX) ---
 if (isset($_GET['action'])) {
     $response = ['status' => 'error', 'message' => 'Invalid request'];
 
-    // Action: Get dynamic lists for dropdowns
     if ($_GET['action'] === 'get_lists') {
         if ($_GET['list'] === 'brands' && isset($_GET['category_id'])) {
             $sql = "SELECT brand_id, brand_name FROM brands WHERE category_id = ? AND is_deleted = FALSE ORDER BY brand_name";
@@ -42,7 +38,6 @@ if (isset($_GET['action'])) {
         }
     }
 
-    // --- ADDED: Fetch details for Edit Function ---
     if ($_GET['action'] === 'get_temp_product_details' && isset($_GET['id'])) {
         $stmt = $conn->prepare("SELECT * FROM purchase_temp WHERE temp_purchase_id = ? AND created_by = ?");
         $stmt->bind_param("ii", $_GET['id'], $current_user_id);
@@ -51,7 +46,6 @@ if (isset($_GET['action'])) {
         $response = $res ? ['status' => 'success', 'data' => $res] : ['status' => 'error', 'message' => 'Not found'];
     }
 
-    // Action: Add/Update/Delete product in the temporary table
     if ($_GET['action'] === 'add_temp_product' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         $sql = "INSERT INTO purchase_temp (vendor_id, purchase_date, invoice_number, category_id, brand_id, model_id, branch_id_fk, quantity, unit_price, warranty_period, serial_number, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -97,7 +91,6 @@ if (isset($_GET['action'])) {
     exit();
 }
 
-// --- Part 2: Handle Final Purchase Submission (Standard POST) ---
 $successMessage = ''; $errorMessage = '';
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_purchase'])) {
     header('Content-Type: text/html');
@@ -166,8 +159,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_purchase'])) {
     }
 }
 
-
-// --- Part 3: Fetch initial data for page load ---
 header('Content-Type: text/html');
 $vendors = $conn->query("SELECT vendor_id, vendor_name FROM vendors WHERE is_deleted = FALSE ORDER BY vendor_name")->fetch_all(MYSQLI_ASSOC);
 $categories = $conn->query("SELECT category_id, category_name FROM categories WHERE is_deleted = FALSE ORDER BY category_name")->fetch_all(MYSQLI_ASSOC);
@@ -272,15 +263,13 @@ $conn->close();
     <div id="final-confirmation-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50"><div class="bg-white rounded-lg shadow-xl w-11/12 max-w-3xl flex flex-col p-6"><h2 class="text-2xl font-bold mb-4">Confirm Purchase Submission</h2><div class="grid grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 rounded-lg border text-sm"><p><strong>Vendor:</strong> <span id="confirm-vendor"></span></p><p><strong>Date:</strong> <span id="confirm-date"></span></p><p><strong>Invoice #:</strong> <span id="confirm-invoice"></span></p></div><div class="overflow-y-auto max-h-80 border rounded-lg"><table class="min-w-full"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Price</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Serials</th></tr></thead><tbody id="confirmation-list" class="divide-y"></tbody></table></div><div class="flex justify-end gap-4 mt-6"><button type="button" id="confirm-cancel-btn" class="bg-gray-300 px-6 py-2 rounded-lg">Cancel</button><form id="final-purchase-form" method="POST"><input type="hidden" name="submit_purchase" value="1"><button type="submit" class="bg-green-600 text-white font-bold px-6 py-2 rounded-lg">Confirm & Save</button></form></div></div></div>
 
 <script>
-// --- 1. STATE MANAGEMENT FUNCTIONS ---
-// Save the Main Info (Vendor, Date, Invoice) to browser memory
+
 function saveMainInfo() {
     sessionStorage.setItem('saved_vendor_id', document.getElementById('vendor_id').value);
     sessionStorage.setItem('saved_purchase_date', document.getElementById('purchase_date').value);
     sessionStorage.setItem('saved_invoice_number', document.getElementById('invoice_number').value);
 }
 
-// Restore Main Info from browser memory (runs on page load)
 function restoreMainInfo() {
     if (sessionStorage.getItem('saved_vendor_id')) {
         document.getElementById('vendor_id').value = sessionStorage.getItem('saved_vendor_id');
@@ -293,23 +282,19 @@ function restoreMainInfo() {
     }
 }
 
-// Clear memory (runs after successful final submit)
 function clearMainInfo() {
     sessionStorage.removeItem('saved_vendor_id');
     sessionStorage.removeItem('saved_purchase_date');
     sessionStorage.removeItem('saved_invoice_number');
 }
 
-// --- GLOBAL HELPERS ---
 async function vendorAdded(vendorId, vendorName) { 
     document.getElementById('vendor_id').add(new Option(vendorName, vendorId, true, true)); 
     document.getElementById('page-modal').classList.remove('is-open'); 
-    // Auto-save the new vendor to storage
     saveMainInfo();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // RESTORE DATA ON LOAD
     restoreMainInfo();
 
     const pageModal = document.getElementById('page-modal'); 
@@ -350,14 +335,12 @@ document.addEventListener('DOMContentLoaded', () => {
     setupChainedSelects(document.getElementById('category_id'), document.getElementById('brand_id'), document.getElementById('model_id'));
     setupChainedSelects(document.getElementById('edit-category_id'), document.getElementById('edit-brand_id'), document.getElementById('edit-model_id'));
 
-    // --- TABLE BUTTON CLICKS ---
     document.getElementById('temp-product-tbody').onclick = async (e) => {
         const btn = e.target.closest('button'); if (!btn) return;
         const tempId = btn.dataset.id;
 
         if (btn.classList.contains('remove-temp-item-btn')) {
             if (!confirm('Are you sure?')) return;
-            // SAVE STATE BEFORE ACTION (Just in case logic changes later)
             saveMainInfo(); 
             const res = await fetch(`?action=delete_temp_product&id=${tempId}`);
             if ((await res.json()).status === 'success') { 
@@ -392,7 +375,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- UPDATE ITEM ---
     document.getElementById('edit-update-btn').onclick = async () => {
         const payload = {
             temp_id: document.getElementById('edit-temp-id').value,
@@ -405,7 +387,6 @@ document.addEventListener('DOMContentLoaded', () => {
             serial_number: document.getElementById('edit-serial_number').value,
         };
         
-        // SAVE STATE BEFORE RELOAD
         saveMainInfo();
         
         const res = await fetch('?action=update_temp_product', { method: 'POST', body: JSON.stringify(payload) });
@@ -413,7 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.status === 'success') location.reload(); else alert(result.message);
     };
 
-    // --- ADD ITEM (MODIFIED) ---
     document.getElementById('add-product-to-list-btn').onclick = async () => {
         const payload = {
             vendor_id: document.getElementById('vendor_id').value,
@@ -428,13 +408,11 @@ document.addEventListener('DOMContentLoaded', () => {
             serial_number: document.getElementById('serial_number').value,
         };
 
-        // Basic Validation
         if(!payload.vendor_id || !payload.purchase_date || !payload.invoice_number) {
             alert("Please fill in Vendor, Date, and Invoice Number first.");
             return;
         }
 
-        // SAVE STATE BEFORE RELOAD
         saveMainInfo();
 
         const res = await fetch('?action=add_temp_product', { method: 'POST', body: JSON.stringify(payload) });
@@ -445,7 +423,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- FINAL SUBMIT ---
     document.getElementById('final-submit-btn').onclick = () => {
         const rows = document.querySelectorAll('#temp-product-tbody tr');
         if (rows.length === 0) return alert("List is empty");
@@ -464,9 +441,8 @@ document.addEventListener('DOMContentLoaded', () => {
         openModal(confirmModal);
     };
 
-    // --- ON SUCCESSFUL FORM SUBMIT, CLEAR DATA ---
     document.getElementById('final-purchase-form').onsubmit = () => {
-        clearMainInfo(); // Transaction done, clear the saved data
+        clearMainInfo();
     };
 });
 </script>
