@@ -12,9 +12,6 @@ if (!isset($_GET['id'])) {
 $invoice_id = (int)$_GET['id'];
 $is_print = isset($_GET['print']) && $_GET['print'] == 'true';
 
-/* ---------------------------------------
-   Amount in Words Function
------------------------------------------ */
 function numberToWordsBD($number)
 {
     $words = array(
@@ -39,9 +36,7 @@ function numberToWordsBD($number)
     return numberToWordsBD(floor($number / 10000000)) . " Crore" . (($number % 10000000 != 0) ? " " . numberToWordsBD($number % 10000000) : "");
 }
 
-/* ---------------------------------------
-   1. Fetch Invoice Master
------------------------------------------ */
+
 $sql_master = "SELECT 
                 inv.Invoice_No,
                 inv.created_at as invoice_date,
@@ -75,9 +70,6 @@ if (!$invoice) {
     die("Invoice not found.");
 }
 
-/* ---------------------------------------
-   2. Fetch Items
------------------------------------------ */
 $sql_items = "SELECT 
                 sp.Quantity,
                 sp.Sold_Unit_Price,
@@ -100,9 +92,7 @@ $stmt_items->bind_param("i", $invoice_id);
 $stmt_items->execute();
 $result_items = $stmt_items->get_result();
 
-/* ---------------------------------------
-   Group Items Logic
------------------------------------------ */
+
 $grouped_items = [];
 while ($row = $result_items->fetch_assoc()) {
     $key = $row['model_name'] . '_' . (string)$row['Sold_Unit_Price'];
@@ -126,9 +116,7 @@ while ($row = $result_items->fetch_assoc()) {
     }
 }
 
-/* ---------------------------------------
-   Smart Client Info Logic
------------------------------------------ */
+
 $client_name = $invoice['Company_Name'] ?? '';
 $branch_name = $invoice['Branch_Name'] ?? '';
 $display_name = 'Walk-in Client';
@@ -156,16 +144,12 @@ if (!empty($invoice['Branch_Phone'])) {
     $display_phone = $invoice['Head_Phone'];
 }
 
-/* ---------------------------------------
-   Totals Calculation
------------------------------------------ */
+
 $tax_amount = $invoice['grand_total'] - $invoice['sub_total'];
 $grand = $invoice['grand_total'];
 $amount_words = numberToWordsBD(floor($grand)) . " Taka Only";
 
-/* ---------------------------------------
-   Footer Data
------------------------------------------ */
+
 date_default_timezone_set('Asia/Dhaka');
 $print_datetime = date("d-M-Y h:i A");
 $printed_by = isset($_SESSION['user_name']) ? $_SESSION['user_name'] : 'System Admin'; 
@@ -179,7 +163,6 @@ $printed_by = isset($_SESSION['user_name']) ? $_SESSION['user_name'] : 'System A
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
 <style>
-/* Base Reset */
 *{margin:0;padding:0;box-sizing:border-box;}
 body{
     font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
@@ -188,7 +171,6 @@ body{
     line-height:1.4;
 }
 
-/* A4 Container */
 .page-container{
     width:210mm;
     min-height:297mm;
@@ -199,7 +181,6 @@ body{
     box-shadow:0 0 10px rgba(0,0,0,0.3);
 }
 
-/* HEADER STYLE */
 .header{
     display:flex;
     justify-content:space-between;
@@ -217,11 +198,9 @@ body{
 .company-address{text-align:right;font-size:10px;color:#444;}
 .company-address strong{font-size:11px;color:#000;}
 
-/* TITLE BOX */
 .invoice-title{text-align:center;margin-bottom:20px; border: 1px solid #333; width: 200px; margin: 0 auto 20px auto; padding: 5px; border-radius: 5px;}
 .invoice-title h2{font-size:18px;font-weight:800;letter-spacing:4px; text-transform: uppercase;}
 
-/* INFO GRID */
 .info-grid{display:flex;justify-content:space-between;margin-bottom:20px;gap:20px; font-size: 12px;}
 .bill-to{flex:0 0 55%;}
 .bill-box{border:1px solid #ddd;padding:10px;background:#f9f9f9;border-radius:4px;}
@@ -235,7 +214,6 @@ body{
 .meta-key{font-weight:600;color:#555;text-align:left; padding: 2px 0;}
 .meta-val{font-weight:700;color:#000;text-align:right;}
 
-/* WORK ORDER BAR */
 .wo-bar {
     width: 100%;
     margin-bottom: 15px;
@@ -256,7 +234,6 @@ body{
     font-size: 13px;
 }
 
-/* ITEMS TABLE */
 .items-table{
     width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px;
 }
@@ -272,7 +249,6 @@ body{
 .col-right{text-align:right;}
 .col-center{text-align:center;}
 
-/* TOTALS SECTION */
 .totals-container{display:flex;justify-content:flex-end;margin-bottom:10px;}
 .totals-table{width:300px;border-collapse:collapse;font-size:11px;}
 .totals-table td{padding:4px 0; text-align: right;}
@@ -282,16 +258,13 @@ body{
 
 .amount-words{font-size:11px;font-weight:600;margin-top:8px;color:#000; border-top: 1px dotted #ccc; padding-top: 5px;}
 
-/* TERMS */
 .terms-box {margin-top:20px; font-size:10px; color:#777; border: 1px solid #eee; padding: 10px; border-radius: 5px;}
 .terms-box ul {padding-left:15px; margin-top:5px;}
 
-/* PAYMENT INFO */
 .payment-info { margin-top: 15px; font-size: 10px; color: #333; line-height: 1.4; border: 1px solid #eee; padding: 10px; border-radius: 5px; background: #fafafa; }
 .payment-info p { margin-bottom: 6px; }
 .payment-info strong { color: #000; }
 
-/* FOOTER WRAP */
 .footer-wrap {
     position: absolute;
     bottom: 0;
@@ -324,8 +297,6 @@ body{
 .meta-center { text-align: center; flex: 1; }
 .meta-right { text-align: right; flex: 1; }
 
-
-/* PRINT MODE */
 @media print {
     @page { margin: 0; size: auto; }
     body{background:white;margin:0;}
@@ -355,7 +326,6 @@ body{
     .print-footer-spacer { height: 40mm; display: block; }
 }
 
-/* UI Buttons */
 .actions{position:fixed;top:20px;right:20px;z-index:999;display:flex;gap:10px;}
 .btn{padding:10px 15px;border-radius:5px;border:none;cursor:pointer;font-weight:bold;box-shadow:0 2px 5px rgba(0,0,0,0.2);}
 .btn-print{background:#2563eb;color:white;}
