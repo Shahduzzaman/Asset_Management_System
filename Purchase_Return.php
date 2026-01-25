@@ -1,25 +1,19 @@
 <?php
-ob_start(); // Ensures headers can be sent without error
-require_once 'connection.php'; // Expects $conn (mysqli)
+ob_start();
+require_once 'connection.php';
 require_once 'session_guard.php';
 
 $user_id = (int)$_SESSION['user_id'];
 
-// Technical Fix: Compatibility for Linux SQL strict modes
 $conn->query("SET sql_mode=''");
 
-// --- Helper: Log Errors ---
 function log_error_msg($msg) {
     error_log("[PurchaseReturn] " . $msg);
 }
 
-// Initialize messages
 $message = '';
 $messageType = '';
 
-// --- 2. FETCH DROPDOWN DATA ---
-
-// Fetch All Vendors
 $vendorsList = [];
 $sqlVendors = "SELECT vendor_id, vendor_name FROM vendors ORDER BY vendor_name ASC";
 $resVendors = $conn->query($sqlVendors);
@@ -29,29 +23,19 @@ if ($resVendors) {
     }
 }
 
-// NOTE: We no longer fetch $productsList here. 
-// It will be fetched dynamically via AJAX based on the selected Vendor.
-
-// --- 3. HANDLE AJAX REQUESTS ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $action = $_GET['action'];
 
-    // --- NEW: FETCH PRODUCTS BY VENDOR ---
-    // --- NEW: FETCH PRODUCTS BY VENDOR (ROBUST VERSION) ---
     if ($action === 'get_vendor_products') {
         $vendor_id = isset($_GET['vendor_id']) ? (int)$_GET['vendor_id'] : 0;
         
-        // 1. Check if vendor_id is valid
         if ($vendor_id <= 0) {
             ob_end_clean(); 
             echo json_encode(['status' => 'error', 'message' => 'Invalid Vendor ID']); 
             exit;
         }
 
-        // 2. The Query
-        // NOTE: Ensure your 'purchase' table actually has 'vendor_id_fk'. 
-        // If your database uses 'vendor_id', change 'pur.vendor_id_fk' to 'pur.vendor_id' below.
         $sql = "SELECT p.sl_id, p.product_sl, m.model_name
             FROM product_sl p
             JOIN purchased_products pur ON p.purchase_id_fk = pur.purchase_id
@@ -61,7 +45,6 @@ if (isset($_GET['action'])) {
         
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
-             // This catches SQL errors (like wrong column name)
              ob_end_clean();
              echo json_encode(['status' => 'error', 'message' => 'SQL Error: ' . $conn->error]);
              exit;
@@ -76,7 +59,6 @@ if (isset($_GET['action'])) {
             $data[] = $row;
         }
         
-        // 3. CLEAN OUTPUT BUFFER to prevent JSON errors
         if (ob_get_length()) ob_end_clean();
         
         echo json_encode(['status' => 'success', 'data' => $data]);
@@ -120,7 +102,6 @@ if (isset($_GET['action'])) {
     }
 }
 
-// --- 4. HANDLE FORM SUBMISSION ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
     $vendor_id = (int)$_POST['vendor_id'];
     $returned_sl_id = (int)$_POST['returned_sl_id'];
@@ -135,7 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
     } else {
         $conn->begin_transaction();
         try {
-            // 1. Insert into purchase_return
             $sqlInsert = "INSERT INTO purchase_return 
                           (vendor_id_fk, returned_product_sl_id_fk, replacement_product_sl_id_fk, price, reason, return_date, created_by) 
                           VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -146,13 +126,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_return'])) {
                 throw new Exception("Failed to save return record: " . $stmt->error);
             }
 
-            // 2. Update Status of Returned Item
             $sqlUpdateReturn = "UPDATE product_sl SET status = 2 WHERE sl_id = ?";
             $stmtRet = $conn->prepare($sqlUpdateReturn);
             $stmtRet->bind_param("i", $returned_sl_id);
             $stmtRet->execute();
 
-            // 3. Update Status of Replacement Item
             if ($replacement_sl_id) {
                 $sqlUpdateRep = "UPDATE product_sl SET status = 0 WHERE sl_id = ?";
                 $stmtRep = $conn->prepare($sqlUpdateRep);
@@ -276,17 +254,14 @@ $(document).ready(function() {
     $('#returned_sl_id').select2({ placeholder: 'Select Vendor First', width: '100%', allowClear: true });
     flatpickr('#return_date', { dateFormat: 'Y-m-d', defaultDate: '<?php echo date('Y-m-d'); ?>', allowInput: true });
 
-    // --- 1. HANDLE VENDOR CHANGE (Fetch Products) ---
     $('#vendor_id').on('change', function() {
         let vendorId = $(this).val();
         
-        // Clear existing data
         $('#returned_sl_id').empty();
         $('#originalPrice').val('');
         $('#price').val('');
         
         if (vendorId) {
-            // Show loading state
             $('#returned_sl_id').append('<option value="">Loading products...</option>');
             
             $.ajax({
@@ -302,7 +277,6 @@ $(document).ready(function() {
                     } else {
                         options = '<option value="">No returnable items found for this vendor</option>';
                     }
-                    // Update Select2
                     $('#returned_sl_id').html(options).trigger('change');
                 },
                 error: function() {
@@ -310,12 +284,10 @@ $(document).ready(function() {
                 }
             });
         } else {
-            // Reset if no vendor selected
             $('#returned_sl_id').html('<option value="">-- Select Vendor First --</option>').trigger('change');
         }
     });
 
-    // --- 2. HANDLE PRODUCT SELECTION (Get Price) ---
     $('#returned_sl_id').on('change', function() {
         let sl_id = $(this).val();
         if (!sl_id) { $('#originalPrice').val(''); $('#price').val(''); return; }
@@ -335,7 +307,6 @@ $(document).ready(function() {
         });
     });
 
-    // --- 3. HANDLE REPLACEMENT SERIAL CHECK ---
     $('#replacementSerial').on('blur', function() {
         let serial = $(this).val().trim();
         if (!serial) { $('#replacementSlId').val(''); $('#replacementFeedback').text(''); return; }
@@ -360,7 +331,6 @@ $(document).ready(function() {
         });
     });
 
-    // --- 4. FORM VALIDATION ---
     $('form').on('submit', function(e) {
         if (!$('#vendor_id').val() || !$('#returned_sl_id').val()) {
             e.preventDefault();
