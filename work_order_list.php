@@ -3,14 +3,11 @@ require_once 'session_guard.php';
 $current_user_id = $_SESSION['user_id'];
 require_once 'connection.php';
 
-// --- CHECK ADMIN ROLE ---
 $isAdmin = (isset($_SESSION['user_role']) && (int)$_SESSION['user_role'] === 1);
 
-// --- API/AJAX SEARCH HANDLER ---
 if (isset($_GET['action']) && $_GET['action'] === 'search') {
     $search = isset($_GET['q']) ? trim($_GET['q']) : '';
     
-    // Select necessary fields
     $sql = "SELECT 
                 w.work_order_id, w.Order_No, w.Order_Date, w.created_at,
                 ch.Company_Name, cb.Branch_Name
@@ -52,28 +49,20 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
 
             echo "<tr class='hover:bg-gray-50 transition border-b border-gray-200'>";
             
-            // Order No (Fixed width & Truncated with Title)
             echo "<td class='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate max-w-[350px]' title='" . htmlspecialchars($row['Order_No']) . "'>" . htmlspecialchars($row['Order_No']) . "</td>";
             
-            // Client Info
             echo "<td class='px-6 py-4 whitespace-normal text-sm text-gray-700'>" . $clientInfo . "</td>";
             
-            // Order Date
             echo "<td class='px-6 py-4 whitespace-nowrap text-sm text-gray-600'>" . $orderDate . "</td>";
             
-            // --- ACTION COLUMN (Modified Order: View -> Edit -> Delete) ---
             echo "<td class='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>";
             
-            // 1. VIEW (Always visible)
-            // Added mr-3 for spacing if other buttons follow
             $viewMargin = $isAdmin ? 'mr-3' : ''; 
             echo "<button onclick='openOrderModal(" . $row['work_order_id'] . ")' class='text-indigo-600 hover:text-indigo-900 {$viewMargin} font-medium transition'>View</button>";
 
             if ($isAdmin) {
-                // 2. EDIT
                 echo "<a href='edit_work_order.php?id=" . $row['work_order_id'] . "' class='text-blue-600 hover:text-blue-900 mr-3 font-medium transition'>Edit</a>";
                 
-                // 3. DELETE
                 echo "<button onclick='deleteOrder(" . $row['work_order_id'] . ")' class='text-red-600 hover:text-red-900 font-medium transition'>Delete</button>";
             }
             
@@ -154,7 +143,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
     </div>
 
     <script>
-        // --- SEARCH LOGIC ---
         let currentQuery = '';
         const searchInput = document.getElementById('search-input');
         const tableBody = document.getElementById('work-order-list');
@@ -172,7 +160,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
             }
         };
 
-        // Initial Load
         fetchOrders();
 
         searchInput.addEventListener('input', (e) => {
@@ -180,7 +167,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
             debounceTimer = setTimeout(() => { fetchOrders(e.target.value); }, 300);
         });
 
-        // --- POPUP MODAL LOGIC ---
         const modal = document.getElementById('order-modal');
         const modalContent = document.getElementById('modal-content');
 
@@ -201,7 +187,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
             if (event.key === "Escape" && !modal.classList.contains('hidden')) { closeOrderModal(); }
         });
 
-        // --- DELETE LOGIC ---
         function deleteOrder(id) {
             if (confirm("Are you sure you want to delete this Work Order?")) {
                 fetch('delete_work_order.php', {
@@ -212,7 +197,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        // Refresh the list to remove the soft-deleted row
                         fetchOrders(currentQuery);
                     } else {
                         alert("Error: " + data.message);
