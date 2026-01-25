@@ -5,10 +5,8 @@ $current_user_id = $_SESSION['user_id'];
 $current_user_name = $_SESSION['user_name'];
 require_once 'connection.php';
 
-// --- Initial Data Fetch for Filters ---
 $vendors = $conn->query("SELECT vendor_id, vendor_name FROM vendors WHERE is_deleted = FALSE ORDER BY vendor_name")->fetch_all(MYSQLI_ASSOC);
 
-// --- Ledger Variables ---
 $transactions = [];
 $total_debit = 0;
 $total_credit = 0;
@@ -30,8 +28,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
     } elseif ($start_date > $end_date) {
         $errorMessage = "Start date cannot be after the end date.";
     } else {
-
-        // --- Vendor Info ---
         $stmt_vn = $conn->prepare("SELECT vendor_name, contact_person, address, phone, email FROM vendors WHERE vendor_id = ?");
         $stmt_vn->bind_param("i", $vendor_id);
         $stmt_vn->execute();
@@ -41,11 +37,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
         $start_date_display = date('d-m-Y', strtotime($start_date));
         $end_date_display   = date('d-m-Y', strtotime($end_date));
 
-        // =====================================================
-        // OPENING BALANCE CALCULATION (Before Start Date)
-        // =====================================================
-
-        // Payments before start date
         $stmt_op = $conn->prepare("
             SELECT COALESCE(SUM(debit_amount), 0) AS total_payment
             FROM payment_table
@@ -58,7 +49,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
         $opening_payment = $stmt_op->get_result()->fetch_assoc()['total_payment'];
         $stmt_op->close();
 
-        // Purchases before start date
         $stmt_oc = $conn->prepare("
             SELECT COALESCE(SUM(quantity * unit_price), 0) AS total_purchase
             FROM purchased_products
@@ -70,13 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
         $stmt_oc->execute();
         $opening_purchase = $stmt_oc->get_result()->fetch_assoc()['total_purchase'];
         $stmt_oc->close();
-
-        // Opening balance = Payments - Purchases
         $opening_balance = $opening_payment - $opening_purchase;
-
-        // =====================================================
-        // TRANSACTIONS WITHIN DATE RANGE
-        // =====================================================
 
         $stmt_pay = $conn->prepare("
             SELECT 
@@ -125,10 +109,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             return $cmp;
         });
 
-        // =====================================================
-        // OPENING BALANCE ROW (PREPENDED)
-        // =====================================================
-
         array_unshift($transactions, [
             'transaction_date'  => date('Y-m-d', strtotime($start_date . ' -1 day')),
             'description'       => 'Opening Balance',
@@ -138,10 +118,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             'balance'           => $opening_balance,
             'balance_indicator' => ($opening_balance < 0) ? '(D)' : '(C)'
         ]);
-
-        // =====================================================
-        // RUNNING BALANCE LOGIC
-        // =====================================================
 
         $current_balance = $opening_balance;
 
@@ -196,18 +172,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
     <style>
         body { font-family: 'Inter', sans-serif; }
 
-        /* ---------------------------
-           SCREEN ONLY (Hide in Print)
-           --------------------------- */
         @media screen {
             .print-only { display: none !important; }
         }
-
-        /* ---------------------------
-           PRINT ONLY STYLES
-           --------------------------- */
         @media print {
-            /* 1. Reset Page & Margins */
             @page {
                 size: A4;
                 margin: 5mm 5mm 5mm 5mm;
@@ -225,19 +193,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 counter-reset: page;
             }
 
-            /* 2. Hide Screen Elements */
             .no-print, .no-print * {
                 display: none !important;
                 height: 0;
                 width: 0;
             }
 
-            /* 3. Helper to Show Hidden Screen Elements in Print */
             .hidden.print-only {
                 display: block !important;
             }
 
-            /* 4. Main Container Reset */
             .container, .max-w-7xl, .mx-auto, .p-4, .p-6, .p-8 {
                 width: 100% !important;
                 max-width: 100% !important;
@@ -249,7 +214,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 border-radius: 0 !important;
             }
 
-            /* 5. Show Print Section */
             #print-section {
                 display: block !important;
                 width: 100%;
@@ -261,7 +225,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 visibility: visible;
             }
 
-            /* 6. Header Section */
             #print-header {
                 display: flex !important;
                 justify-content: space-between !important;
@@ -292,7 +255,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             }
             .company-address p { margin: 0; }
 
-            /* 7. Vendor Info Block */
             .vendor-info-box {
                 border: 1px solid #000;
                 padding: 5px;
@@ -303,7 +265,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
             }
             .vendor-info-col { width: 48%; }
 
-            /* 8. TABLE STYLING */
             table {
                 width: 100% !important;
                 border-collapse: collapse !important;
@@ -326,14 +287,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 text-align: center;
             }
 
-            /* COLUMN WIDTHS MODIFIED HERE */
             .col-date { width: 9%; text-align: center; white-space: nowrap; }
-            .col-desc { width: 39%; text-align: left; } /* Decreased from 42% */
+            .col-desc { width: 39%; text-align: left; } 
             .col-inv  { width: 12%; text-align: center; white-space: nowrap; }
             .col-amt  { width: 12%; text-align: right; font-family: 'Courier New', monospace; }
-            .col-bal  { width: 16%; text-align: right; font-family: 'Courier New', monospace; } /* Added: 12% + 10% taken from Desc */
+            .col-bal  { width: 16%; text-align: right; font-family: 'Courier New', monospace; }
 
-            /* 9. Summary Box */
             .summary-box {
                 margin-top: 10px;
                 border: 1px solid #000;
@@ -349,7 +308,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 margin-bottom: 2px;
             }
 
-            /* 10. Footer */
             #print-footer {
                 position: fixed;
                 bottom: 0;
@@ -377,7 +335,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['generate_ledger'])) {
                 box-shadow: none !important;
                 border-radius: 0 !important;
             }
-            /* Normalized Colors in Print */
             .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900, .text-green-600, .text-red-600, .text-red-700 {
                 color: #000 !important;
             }
