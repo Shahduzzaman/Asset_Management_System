@@ -1,16 +1,15 @@
 <?php
-ob_start(); // Fix: Prevents "Headers already sent" error during redirects
+ob_start();
 require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
-// Fix: Disable strict mode for compatibility with all update queries
+
 $conn->query("SET sql_mode=''");
 
-// --- START: ADMIN ROLE CHECK ---
 $user_role = 0;
-// Fix: Table name must be lowercase 'users'
+
 $sql_role_check = "SELECT role FROM users WHERE user_id = ?";
 $stmt_role_check = $conn->prepare($sql_role_check);
 $stmt_role_check->bind_param("i", $current_user_id);
@@ -20,22 +19,18 @@ if($row_role = $result_role_check->fetch_assoc()) {
     $user_role = $row_role['role'];
 }
 $stmt_role_check->close();
-if ($user_role != 1) { // 1 = Admin role
+if ($user_role != 1) {
     $_SESSION['error_message'] = "Access Denied: You do not have permission to manage users.";
     header("Location: dashboard.php");
     exit();
 }
-// --- END: ADMIN ROLE CHECK ---
 
-// --- Part 1: API Request Handler (AJAX) ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $response = ['status' => 'error', 'message' => 'Invalid request'];
 
-    // Action: Get details for a single user
     if ($_GET['action'] === 'get_user_details' && isset($_GET['id'])) {
         $user_id_to_edit = intval($_GET['id']);
-        // Fix: Changed 'Branch' to lowercase 'branch'
         $sql = "SELECT u.user_id, u.user_name, u.email, u.phone, u.role, u.status, u.branch_id_fk, b.Name as branch_name 
                 FROM users u
                 LEFT JOIN branch b ON u.branch_id_fk = b.branch_id
@@ -51,7 +46,6 @@ if (isset($_GET['action'])) {
         }
     }
 
-    // Action: Update user details
     if ($_GET['action'] === 'update_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         $user_id_to_update = intval($data['user_id']);
@@ -87,7 +81,6 @@ if (isset($_GET['action'])) {
         }
     }
 
-    // Action: Reset user password
     if ($_GET['action'] === 'reset_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         $user_id_to_reset = intval($data['user_id']);
@@ -117,9 +110,8 @@ if (isset($_GET['action'])) {
     exit();
 }
 
-// --- Part 2: Fetch initial data for page load ---
 header('Content-Type: text/html');
-// Fix: Lowercase table names
+
 $users_sql = "SELECT u.user_id, u.user_name, u.email, u.phone, u.role, u.status, b.Name as branch_name 
               FROM users u
               LEFT JOIN branch b ON u.branch_id_fk = b.branch_id
@@ -127,7 +119,6 @@ $users_sql = "SELECT u.user_id, u.user_name, u.email, u.phone, u.role, u.status,
               ORDER BY u.user_name";
 $users = $conn->query($users_sql)->fetch_all(MYSQLI_ASSOC);
 
-// Fix: Lowercase table name 'branch'
 $branches_result = $conn->query("SELECT branch_id, Name FROM branch WHERE is_deleted = FALSE ORDER BY Name");
 $branches = $branches_result ? $branches_result->fetch_all(MYSQLI_ASSOC) : [];
 
