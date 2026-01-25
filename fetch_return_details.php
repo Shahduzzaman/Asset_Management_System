@@ -15,7 +15,6 @@ if (!$return_id) {
 }
 
 try {
-    // FIXED: changed u.name → u.user_name
     $sql = "SELECT
                 sr.sales_return_id,
                 sr.invoice_number,
