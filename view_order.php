@@ -1,6 +1,5 @@
 <?php
-// view_order.php
-require_once 'session_guard.php'; // Ensure user is logged in
+require_once 'session_guard.php';
 require_once 'connection.php';
 
 if (!isset($_GET['id']) || empty($_GET['id'])) {
@@ -10,7 +9,6 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $work_order_id = (int)$_GET['id'];
 
-// 1. Fetch Work Order & Client Details
 $sql_head = "SELECT 
                 w.Order_No, w.Order_Date, w.created_at,
                 u.user_name as created_by_name,
@@ -32,14 +30,11 @@ if (!$order) {
     echo "<div class='text-red-500 p-4'>Work Order not found.</div>";
     exit;
 }
-
-// Determine Client Display Data (Logic: Branch data takes precedence if it exists, otherwise Head Office)
 $client_name = !empty($order['Branch_Name']) ? $order['Branch_Name'] : $order['Company_Name'];
 $client_address = !empty($order['Branch_Address']) ? $order['Branch_Address'] : $order['Head_Address'];
 $client_contact = !empty($order['Branch_Contact']) ? $order['Branch_Contact'] : $order['Head_Contact'];
 $client_phone = !empty($order['Branch_Phone']) ? $order['Branch_Phone'] : $order['Head_Phone'];
 
-// 2. Fetch Products/Items in this Work Order
 $sql_items = "SELECT 
                 sp.Quantity, sp.Sold_Unit_Price, sp.Remarks,
                 m.model_name,
