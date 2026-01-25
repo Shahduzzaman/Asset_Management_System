@@ -7,7 +7,6 @@ require_once 'connection.php';
 
 $user_id = (int)$_SESSION['user_id'];
 
-// Fetch all sales returns with joined info
 $sql = "SELECT 
             sr.sales_return_id,
             sr.invoice_number,
@@ -28,7 +27,6 @@ $sql = "SELECT
 
 $result = $conn->query($sql);
 
-// Helper function to convert status code to text
 function statusText($code) {
     switch ((int)$code) {
         case 0: return 'In Stock';
@@ -117,7 +115,6 @@ function statusText($code) {
     </table>
 </div>
 
-<!-- Modal -->
 <div class="modal fade" id="returnDetailsModal" tabindex="-1" aria-labelledby="returnDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
@@ -126,7 +123,6 @@ function statusText($code) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <!-- Content filled by AJAX -->
                 <div id="modalContent" class="modal-side-by-side">
                     <div class="product-card" id="returnedProductCard">
                         <h5>Returned Product</h5>
@@ -174,14 +170,11 @@ function statusText($code) {
         $('.btn-view-details').on('click', function() {
             var returnId = $(this).data('id');
 
-            // Clear modal content while loading
             $('#retSerial, #retModel, #retStatus, #repSerial, #repModel, #repStatus, #infoInvoice, #infoReturnDate, #infoCreatedBy').text('Loading...');
 
-            // Show modal
             var modal = new bootstrap.Modal(document.getElementById('returnDetailsModal'));
             modal.show();
 
-            // Fetch details via AJAX
             $.ajax({
                 url: 'fetch_return_details.php',
                 method: 'GET',
