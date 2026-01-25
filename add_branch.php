@@ -1,19 +1,17 @@
 <?php
-ob_start(); // Technical Fix: Enables redirects to work without "blank page" errors
+ob_start(); 
 require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
-// Technical Fix: Compatibility for Linux SQL strict mode
+
 $conn->query("SET sql_mode=''");
 
-// --- START: ADMIN ROLE CHECK ---
 $user_role = 0;
 if(isset($_SESSION['user_role'])) {
     $user_role = (int)$_SESSION['user_role'];
 } else {
-    // Technical Fix: Table name lowercase 'users'
     $sql_role_check = "SELECT role FROM users WHERE user_id = ?";
     $stmt_role_check = $conn->prepare($sql_role_check);
     $stmt_role_check->bind_param("i", $current_user_id);
@@ -26,20 +24,16 @@ if(isset($_SESSION['user_role'])) {
     $stmt_role_check->close();
 }
 
-if ($user_role != 1) { // 1 = Admin role
+if ($user_role != 1) {
     $_SESSION['error_message'] = "Access Denied: You do not have permission to manage branches.";
     header("Location: dashboard.php");
     exit();
 }
-// --- END: ADMIN ROLE CHECK ---
 
-// --- START: FLASH MESSAGE HANDLING ---
 $successMessage = $_SESSION['successMessage'] ?? '';
 $errorMessage = $_SESSION['errorMessage'] ?? '';
 unset($_SESSION['successMessage'], $_SESSION['errorMessage']);
-// --- END: FLASH MESSAGE HANDLING ---
 
-// --- Part 1: API Request Handler (AJAX) ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     if ($_GET['action'] === 'keep_alive') {
@@ -49,7 +43,6 @@ if (isset($_GET['action'])) {
     exit();
 }
 
-// --- Part 2: Handle Form Submissions (POST) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $name = trim($_POST['Name']);
     $address = !empty($_POST['Address']) ? trim($_POST['Address']) : null;
@@ -59,7 +52,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($name)) {
         $_SESSION['errorMessage'] = "Branch Name is a required field.";
     } else {
-        // Technical Fix: Table name changed to lowercase 'branch' to match Linux DB
         $sql = "INSERT INTO branch (Name, Address, Email, Phone, created_by) VALUES (?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("ssssi", $name, $address, $email, $phone, $current_user_id);
@@ -73,13 +65,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     
     $conn->close();
-    // Post-Redirect-Get (PRG) pattern
     header("Location: " . $_SERVER["PHP_SELF"]);
     exit();
 }
 
 $conn->close();
-$idleTimeout = 1800; // Define variable for JS if not in session_guard
+$idleTimeout = 1800; 
 ?>
 
 <!DOCTYPE html>
