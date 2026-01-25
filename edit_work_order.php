@@ -2,7 +2,6 @@
 require_once 'session_guard.php';
 require_once 'connection.php';
 
-// 1. ACCESS CONTROL: Only Admins
 if (!isset($_SESSION['user_role']) || (int)$_SESSION['user_role'] !== 1) {
     $_SESSION['errorMessage'] = "Access Denied: Only Admins can edit work orders.";
     header("Location: work_order_list.php");
@@ -12,13 +11,11 @@ if (!isset($_SESSION['user_role']) || (int)$_SESSION['user_role'] !== 1) {
 $error = '';
 $success = '';
 
-// 2. HANDLE FORM SUBMISSION (UPDATE HEADER ONLY)
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['work_order_id'])) {
     $wo_id = (int)$_POST['work_order_id'];
     $order_no = trim($_POST['Order_No']);
     $order_date = $_POST['Order_Date'];
     
-    // Client Processing
     $client_selection = $_POST['client_id'] ?? ''; 
     $client_head_id_fk = null;
     $client_branch_id_fk = null;
@@ -32,7 +29,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['work_order_id'])) {
         }
     }
 
-    // Update Header (Including Client)
     $sql_update_header = "UPDATE work_order SET Order_No = ?, Order_Date = ?, client_head_id_fk = ?, client_branch_id_fk = ?, is_updated = 1 WHERE work_order_id = ?";
     $stmt = $conn->prepare($sql_update_header);
     $stmt->bind_param("ssiii", $order_no, $order_date, $client_head_id_fk, $client_branch_id_fk, $wo_id);
@@ -45,7 +41,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['work_order_id'])) {
     $stmt->close();
 }
 
-// 3. FETCH DATA FOR FORM
 $work_order_id = isset($_GET['id']) ? (int)$_GET['id'] : (isset($_POST['work_order_id']) ? (int)$_POST['work_order_id'] : 0);
 
 if ($work_order_id === 0) {
@@ -53,7 +48,6 @@ if ($work_order_id === 0) {
     exit();
 }
 
-// Fetch Header Info
 $sql = "SELECT * FROM work_order WHERE work_order_id = ? AND is_deleted = 0";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $work_order_id);
@@ -62,7 +56,7 @@ $order = $stmt->get_result()->fetch_assoc();
 
 if (!$order) { die("Order not found or deleted."); }
 
-// Determine Current Client Key for Dropdown Selection
+
 $current_client_key = '';
 if (!empty($order['client_head_id_fk'])) {
     $current_client_key = 'head_' . $order['client_head_id_fk'];
@@ -70,7 +64,6 @@ if (!empty($order['client_head_id_fk'])) {
     $current_client_key = 'branch_' . $order['client_branch_id_fk'];
 }
 
-// Fetch Items (FOR DISPLAY ONLY - READ ONLY)
 $sql_items = "SELECT sp.*, m.model_name, b.brand_name 
               FROM sold_product sp 
               LEFT JOIN models m ON sp.model_id_fk = m.model_id 
@@ -81,7 +74,6 @@ $stmt_items->bind_param("i", $work_order_id);
 $stmt_items->execute();
 $items_result = $stmt_items->get_result();
 
-// Fetch Client List for Dropdown
 $client_list_sql = "
     (SELECT client_head_id as id, Company_Name as name, 'Head Office' as type, 'head' as type_key FROM client_head WHERE is_deleted = 0)
     UNION ALL
