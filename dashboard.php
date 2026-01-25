@@ -388,10 +388,10 @@ if ($res = $conn->query($catSql)) {
                 <span class="link-text text-xs">Sold Product</span>
             </a>
             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="Purchase_Return.php">
-                <span class="link-text text-xs">Purchase Return</span>
+                <span class="link-text text-xs">Purchase Warranty Return</span>
             </a>
             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="Sales_Return.php">
-                <span class="link-text text-xs">Sales Return</span>
+                <span class="link-text text-xs">Sales Warranty Return</span>
             </a>
             <a href="#" class="sidebar-link block px-3 py-1.5 rounded-md hover:bg-indigo-50 text-gray-600" data-target="make_payment.php">
                 <span class="link-text text-xs">Make Payment</span>
