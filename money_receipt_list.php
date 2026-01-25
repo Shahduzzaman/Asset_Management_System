@@ -2,18 +2,12 @@
 require_once 'session_guard.php';
 require_once 'connection.php';
 
-// --- 1. ADMIN CHECK ---
-// Check if user is Admin (role id 1)
 $user_role = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 0;
 $isAdmin = ($user_role == 1);
 
-// ==========================================================
-//                 BACKEND AJAX HANDLERS
-// ==========================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['action'] === 'fetch')) {
     
-    // --- A. DELETE ACTION ---
     if (isset($_POST['action']) && $_POST['action'] === 'delete') {
         header('Content-Type: application/json');
         if (!$isAdmin) { echo json_encode(['status' => 'error', 'message' => 'Unauthorized']); exit; }
@@ -21,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
         $payment_id = (int)$_POST['id'];
         $conn->begin_transaction();
         try {
-            // Get Invoice ID
+
             $stmt = $conn->prepare("SELECT invoice_id_fk FROM payments WHERE payment_id = ?");
             $stmt->bind_param("i", $payment_id);
             $stmt->execute();
@@ -29,10 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
 
             if(!$inv_id) throw new Exception("Payment not found");
 
-            // Soft Delete
             $conn->query("UPDATE payments SET is_deleted = 1 WHERE payment_id = $payment_id");
 
-            // Update Invoice Status
             recalculateInvoiceStatus($conn, $inv_id);
             
             $conn->commit();
@@ -44,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
         exit;
     }
 
-    // --- B. GET SINGLE RECEIPT DETAILS (For Edit Modal) ---
     if (isset($_POST['action']) && $_POST['action'] === 'get_details') {
         header('Content-Type: application/json');
         if (!$isAdmin) { echo json_encode(['status' => 'error', 'message' => 'Unauthorized']); exit; }
@@ -62,7 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
         $data = $stmt->get_result()->fetch_assoc();
 
         if ($data) {
-            // Calculate Max Editable Amount: (Invoice Total - (Total Paid - Current Amount))
             $paid_others = $data['Total_Paid_All'] - $data['amount'];
             $max_payable = $data['Invoice_Total'] - $paid_others;
             $data['max_payable'] = $max_payable;
@@ -73,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
         exit;
     }
 
-    // --- C. UPDATE RECEIPT ---
     if (isset($_POST['action']) && $_POST['action'] === 'update') {
         header('Content-Type: application/json');
         if (!$isAdmin) { echo json_encode(['status' => 'error', 'message' => 'Unauthorized']); exit; }
@@ -83,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
         $date = $_POST['payment_date'];
         $method = $_POST['payment_method'];
         $trans = ($method === 'Cash') ? null : trim($_POST['transaction_number']);
-        $max_val = (float)$_POST['max_val_hidden']; // Passed from frontend for validation
+        $max_val = (float)$_POST['max_val_hidden'];
 
         if ($amount <= 0 || $amount > ($max_val + 0.1)) {
              echo json_encode(['status' => 'error', 'message' => 'Invalid amount.']); exit;
@@ -95,7 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
             $stmt->bind_param("sssdi", $date, $method, $trans, $amount, $id);
             $stmt->execute();
 
-            // Get Invoice ID to update status
             $res = $conn->query("SELECT invoice_id_fk FROM payments WHERE payment_id = $id")->fetch_assoc();
             recalculateInvoiceStatus($conn, $res['invoice_id_fk']);
 
@@ -108,7 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
         exit;
     }
     
-    // --- D. FETCH LIST (Standard) ---
     if (isset($_GET['action']) && $_GET['action'] === 'fetch') {
         $search = isset($_GET['q']) ? trim($_GET['q']) : '';
         $sql = "SELECT p.*, i.Invoice_No,
@@ -138,16 +125,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_GET['action']) && $_GET['a
     }
 }
 
-// Helper Function
 function recalculateInvoiceStatus($conn, $invoice_id) {
     $stmt = $conn->prepare("SELECT IncludingTax_TotalPrice as total, (SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id_fk = ? AND is_deleted = 0) as paid FROM invoice WHERE invoice_id = ?");
     $stmt->bind_param("ii", $invoice_id, $invoice_id);
     $stmt->execute();
     $calc = $stmt->get_result()->fetch_assoc();
     
-    $status = 0; // Due
-    if ($calc['paid'] >= ($calc['total'] - 0.1)) $status = 2; // Paid
-    elseif ($calc['paid'] > 0) $status = 1; // Partial
+    $status = 0;
+    if ($calc['paid'] >= ($calc['total'] - 0.1)) $status = 2;
+    elseif ($calc['paid'] > 0) $status = 1;
     
     $conn->query("UPDATE invoice SET status = $status WHERE invoice_id = $invoice_id");
 }
@@ -264,14 +250,12 @@ function recalculateInvoiceStatus($conn, $invoice_id) {
             fetchData();
             $('#searchInput').on('input', function() { fetchData($(this).val()); });
             
-            // Edit Modal Logic
             $('#edit_method').on('change', function() {
                 const isCash = $(this).val() === 'Cash';
                 $('#edit_trans').prop('disabled', isCash).val(isCash ? '' : $('#edit_trans').val());
             });
         });
 
-        // --- FETCH LIST ---
         function fetchData(query = '') {
             $.ajax({
                 url: 'money_receipt_list.php',
@@ -331,13 +315,11 @@ function recalculateInvoiceStatus($conn, $invoice_id) {
             });
         }
 
-        // --- EDIT MODAL FUNCTIONS ---
         function openEditModal(id) {
             $('#editModal').removeClass('hidden');
             $('#modalError').addClass('hidden');
             $('#modal_sub_info').text('Loading info...');
             
-            // Fetch Details
             $.ajax({
                 url: 'money_receipt_list.php',
                 type: 'POST',
@@ -351,12 +333,11 @@ function recalculateInvoiceStatus($conn, $invoice_id) {
                         $('#edit_method').val(d.payment_method);
                         $('#edit_trans').val(d.transaction_number);
                         $('#edit_amount').val(d.amount);
-                        $('#edit_max_val').val(d.max_payable); // Hidden input for validation
+                        $('#edit_max_val').val(d.max_payable); 
                         
                         $('#lbl_max_amount').text(parseFloat(d.max_payable).toFixed(2));
                         $('#modal_sub_info').html(`Receipt: <b>${d.money_receipt_no}</b> | Invoice: ${d.Invoice_No}`);
                         
-                        // Trigger change to set disabled state correctly
                         $('#edit_method').trigger('change');
                     } else {
                         alert("Error fetching data");
@@ -378,7 +359,7 @@ function recalculateInvoiceStatus($conn, $invoice_id) {
                 $('#modalError').text("Amount must be greater than 0").removeClass('hidden');
                 return;
             }
-            if (amount > (max + 0.1)) { // Small buffer for float issues
+            if (amount > (max + 0.1)) {
                 $('#modalError').text(`Amount cannot exceed ${max.toFixed(2)}`).removeClass('hidden');
                 return;
             }
@@ -394,7 +375,7 @@ function recalculateInvoiceStatus($conn, $invoice_id) {
                     if (response.status === 'success') {
                         alert(response.message);
                         closeEditModal();
-                        fetchData($('#searchInput').val()); // Refresh list
+                        fetchData($('#searchInput').val());
                     } else {
                         $('#modalError').text(response.message).removeClass('hidden');
                     }
@@ -405,7 +386,6 @@ function recalculateInvoiceStatus($conn, $invoice_id) {
             });
         }
 
-        // --- PRINT & DELETE ---
         function printReceipt(id) {
             document.getElementById('hidden_print_frame').src = `print_money_receipt.php?id=${id}&print=true`;
         }
