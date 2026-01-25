@@ -3,7 +3,6 @@ require_once 'session_guard.php';
 $current_user_id = $_SESSION['user_id'];
 require_once 'connection.php';
 
-// --- START: AJAX HANDLER (Fetch Invoice Details) ---
 if (isset($_GET['action']) && $_GET['action'] === 'get_invoice_details') {
     header('Content-Type: application/json');
     $invoice_id = isset($_GET['invoice_id']) ? (int)$_GET['invoice_id'] : 0;
@@ -43,10 +42,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_invoice_details') {
     exit();
 }
 
-// --- START: FORM SUBMISSION HANDLER ---
 $successMessage = '';
 $errorMessage = '';
-$auto_print_id = null; // Variable to trigger auto-print
+$auto_print_id = null;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $invoice_id = (int)$_POST['invoice_id'];
@@ -74,7 +72,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } else {
                 $conn->begin_transaction();
                 try {
-                    // 1. GENERATE MONEY RECEIPT NO
                     $sql_mr = "SELECT money_receipt_no FROM payments ORDER BY payment_id DESC LIMIT 1 FOR UPDATE";
                     $res_mr = $conn->query($sql_mr);
                     $row_mr = $res_mr->fetch_assoc();
@@ -88,7 +85,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                     $new_mr_no = 'P1MR-' . str_pad($next_num, 6, '0', STR_PAD_LEFT);
 
-                    // 2. INSERT PAYMENT
                     $sql_insert = "INSERT INTO payments (invoice_id_fk, payment_date, payment_method, transaction_number, amount, money_receipt_no, created_by) 
                                    VALUES (?, ?, ?, ?, ?, ?, ?)";
                     $stmt_ins = $conn->prepare($sql_insert);
@@ -96,7 +92,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmt_ins->execute();
                     $new_payment_id = $conn->insert_id;
 
-                    // 3. UPDATE STATUS
                     $new_total_paid = $check_data['paid_so_far'] + $received_amount;
                     $new_status = 0; 
                     if (abs($new_total_paid - $check_data['Total_Amount']) < 0.10) {
@@ -112,10 +107,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                     $conn->commit();
                     
-                    // --- SUCCESS ---
                     $successMessage = "Payment Received successfully! <br>Receipt No: <strong>" . $new_mr_no . "</strong>";
                     
-                    // Set this ID to trigger the hidden iframe below
                     $auto_print_id = $new_payment_id;
                     
                 } catch (Exception $e) {
@@ -129,7 +122,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// --- FETCH INVOICES ---
 $sql_list = "SELECT i.invoice_id, i.Invoice_No, i.IncludingTax_TotalPrice, 
              ch.Company_Name, cb.Branch_Name
              FROM invoice i
@@ -254,8 +246,7 @@ $invoices = $conn->query($sql_list);
             iframe.id = 'auto_print_frame';
             
             document.body.appendChild(iframe);
-            // Removed iframe.onload -> print() logic because print_money_receipt.php handles it.
-        });
+         });
     </script>
     <?php endif; ?>
 
