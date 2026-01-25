@@ -8,9 +8,6 @@ $success_message = '';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-/* -----------------------------------------
-   HELPERS
------------------------------------------ */
 
 function log_error_msg($msg) {
     error_log($msg);
@@ -76,16 +73,12 @@ function ensure_manual_work_order(mysqli $conn, int $client_head_id, int $user_i
     return $id;
 }
 
-/* -----------------------------------------
-   POST: COMPLETE SALE
------------------------------------------ */
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
 
     $conn->begin_transaction();
 
     try {
-        /* -------- CLIENT RESOLUTION (CRITICAL FIX) -------- */
 
         $client_head_id = null;
         $client_branch_id = null;
@@ -97,10 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
         $raw = $_POST['client_branch_id'];
 
         if (preg_match('/^head_(\d+)$/', $raw, $m)) {
-            // Head office selected
+
             $client_head_id = (int)$m[1];
         } else {
-            // Branch selected → derive head from DB
             $client_branch_id = (int)$raw;
 
             $stmt = $conn->prepare("
@@ -119,7 +111,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
             }
         }
 
-        /* -------- WORK ORDER -------- */
 
         $work_order_id = !empty($_POST['work_order_id'])
             ? (int)$_POST['work_order_id']
@@ -127,7 +118,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
 
         $sale_date = !empty($_POST['sale_date']) ? $_POST['sale_date'] : date('Y-m-d');
 
-        /* -------- CART LOCK -------- */
 
         $stmt = $conn->prepare("
             SELECT *
@@ -143,7 +133,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
             throw new Exception("Cart is empty.");
         }
 
-        /* -------- FINANCIALS -------- */
 
         $sub_total = (float)($_POST['sub_total'] ?? 0);
         $discount = (float)($_POST['discount'] ?? 0);
@@ -153,7 +142,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
         $tax_amount = $excl * ($tax_percent / 100);
         $incl = $excl + $tax_amount;
 
-        /* -------- INVOICE INSERT (FIXED) -------- */
 
         $invoice_no = generate_invoice_no($conn);
 
@@ -178,11 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
         $invoice_id = (int)$conn->insert_id;
         $stmt->close();
 
-        /* -------- PREPARED STATEMENTS -------- */
-/* -------- PREPARED STATEMENTS -------- */
 
-        // Note: We updated the bind types to be correct (i=int, d=double, s=string)
-        // Order: head(i), branch(i), date(s), wo(i), sl(i), model(i), qty(i), price(d), avg(d), rem(s), inv(i), user(i)
         $stmt_sold = $conn->prepare("
             INSERT INTO sold_product (
                 client_head_id_fk,
@@ -213,18 +197,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
             WHERE sl_id = ? AND status = 0
         ");
 
-        /* -------- LOOP CART -------- */
 
         while ($row = $cart->fetch_assoc()) {
 
             $model_id = (int)$row['model_id_fk'];
-            // Ensure strictly NULL if empty
             $sl_id = !empty($row['product_sl_id_fk']) ? (int)$row['product_sl_id_fk'] : null;
             $qty = (int)$row['quantity'];
             $price = (float)$row['sale_price'];
             $remarks = $row['remarks'] ?? '';
 
-            // Calculate Average Price
             $stmt_avg->bind_param("i", $model_id);
             $stmt_avg->execute();
             $stmt_avg->store_result();
@@ -232,28 +213,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
             $stmt_avg->fetch();
             $stmt_avg->free_result();
 
-            // --- FIX FOR CONSTRAINT 'chk_client_link' ---
-            // Logic: If we have a Branch, we do NOT set the Head ID in this specific table
-            // (because the branch already links to the head). 
-            // If we have no Branch (Head Office sale), we set the Head ID.
-            
             $sold_branch_id = !empty($client_branch_id) ? (int)$client_branch_id : null;
             $sold_head_id   = !empty($sold_branch_id) ? null : (int)$client_head_id;
 
             $stmt_sold->bind_param(
-                "iisiiiiddsii",  // Corrected Types: i=int, d=double, s=string
-                $sold_head_id,   // i: NULL if branch is set
-                $sold_branch_id, // i: NULL if head is set
-                $sale_date,      // s
-                $work_order_id,  // i
-                $sl_id,          // i
-                $model_id,       // i (Was d in your code, should be i)
-                $qty,            // i (Was d in your code, should be i)
-                $price,          // d
-                $avg_price,      // d (Average price is numeric)
-                $remarks,        // s
-                $invoice_id,     // i
-                $user_id         // i
+                "iisiiiiddsii",  
+                $sold_head_id,  
+                $sold_branch_id, 
+                $sale_date, 
+                $work_order_id,
+                $sl_id,
+                $model_id, 
+                $qty,
+                $price,
+                $avg_price,
+                $remarks,
+                $invoice_id,
+                $user_id
             );
             
             if (!$stmt_sold->execute()) {
@@ -266,7 +242,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
             }
         }
 
-        /* -------- CLEANUP -------- */
 
         $conn->query("DELETE FROM cart WHERE user_id_fk = {$user_id}");
         $conn->commit();
@@ -282,9 +257,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_product'])) {
     }
 }
 
-/* -----------------------------------------
-   UI DATA
------------------------------------------ */
 
 $clients_struct = [];
 $res = $conn->query("
@@ -309,7 +281,6 @@ while ($r = $res->fetch_assoc()) {
     }
 }
 ?>
-<!-- UI PART REMAINS UNCHANGED -->
 
 
 <!DOCTYPE html>
@@ -403,7 +374,6 @@ while ($r = $res->fetch_assoc()) {
 
                 <div class="lg:col-span-2 space-y-6">
                     <?php
-                    // Get cart items for display and calc
                     $cart_items = [];
                     $sub_total_calc = 0;
                     $cstmt = $conn->prepare("
@@ -492,40 +462,35 @@ while ($r = $res->fetch_assoc()) {
 
 <script>
 $(document).ready(function() {
-    // Initialize Select2
     $('#client_branch_id').select2({ placeholder: "Search Client...", allowClear: true });
     $('#work_order_id').select2({ placeholder: 'Select client first', width: '100%', allowClear: true });
 
-    // Listen for Client Change
     $('#client_branch_id').on('change', function() {
-        var val = $(this).val(); // This will be "head_5" or "10"
+        var val = $(this).val();
         var $workOrderSelect = $('#work_order_id');
 
-        // Reset Work Order Dropdown
         $workOrderSelect.empty().prop('disabled', true);
 
         if (val) {
             $workOrderSelect.append('<option>Loading...</option>');
             
             $.ajax({
-                url: 'api_get_work_orders.php', // Points to the file fixed above
+                url: 'api_get_work_orders.php',
                 type: 'GET',
-                data: { client_identifier: val }, // Send the raw value
+                data: { client_identifier: val },
                 dataType: 'json',
                 success: function(data) {
                     $workOrderSelect.empty();
                     $workOrderSelect.append('<option value="">-- Select Work Order (Optional) --</option>');
 
                     if (Array.isArray(data) && data.length > 0) {
-                        // Populate options
+
                         data.forEach(function(o) {
                             $workOrderSelect.append(new Option(o.Order_No + ' (' + o.Order_Date + ')', o.work_order_id));
                         });
                     } else {
-                        // Inform user no orders found
                         $workOrderSelect.append('<option value="" disabled>No active work orders found</option>');
                     }
-                    // Re-enable the dropdown
                     $workOrderSelect.prop('disabled', false);
                 },
                 error: function(xhr, status, error) {
@@ -535,12 +500,10 @@ $(document).ready(function() {
                 }
             });
         } else {
-            // If client selection is cleared
             $workOrderSelect.append('<option value="">Select client first</option>');
         }
     });
 
-    // --- Existing Calculation Logic ---
     function calculateTotals() {
         var subTotal = parseFloat($('#sub_total').val()) || 0;
         var taxPercent = parseFloat($('#tax_percent').val()) || 0;
