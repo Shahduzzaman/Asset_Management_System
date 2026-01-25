@@ -3,9 +3,8 @@ require_once 'session_guard.php';
 
 $user_id = (int)$_SESSION['user_id'];
 
-require_once 'connection.php'; // expects $conn (mysqli)
+require_once 'connection.php';
 
-// Initialize variables to avoid undefined variable warnings
 $message = '';
 $messageType = '';
 $error_message = '';
@@ -16,7 +15,6 @@ function log_error_msg($msg) {
 }
 
 try {
-    // --- 1. HANDLE AJAX REQUESTS (Search Invoices Autocomplete) ---
     if (isset($_GET['action']) && $_GET['action'] === 'search_invoices') {
         header('Content-Type: application/json');
         $term = $_GET['term'] ?? '';
@@ -41,7 +39,6 @@ try {
         exit;
     }
 
-    // --- 2. HANDLE AJAX REQUESTS (Get Invoice Details) ---
     if (isset($_GET['action']) && $_GET['action'] === 'get_invoice_details') {
         header('Content-Type: application/json');
 
@@ -71,7 +68,6 @@ try {
             exit;
         }
 
-        // Fetch sold products
         $sql_products = "SELECT 
                             sp.product_sl_id_fk,
                             psl.product_sl AS sl_no,
@@ -98,7 +94,6 @@ try {
         exit;
     }
 
-    // --- 3. HANDLE AJAX REQUESTS (Check Replacement Product Availability) ---
     if (isset($_GET['action']) && $_GET['action'] === 'check_replacement') {
         header('Content-Type: application/json');
         $serial_no = $_GET['serial_no'] ?? '';
@@ -118,7 +113,6 @@ try {
     }
 
 } catch (mysqli_sql_exception $e) {
-    // AJAX requests get JSON; normal page load shows message
     if (isset($_GET['action'])) {
         header('Content-Type: application/json');
         echo json_encode(['status' => 'error', 'message' => 'Database Error: ' . $e->getMessage()]);
@@ -138,7 +132,6 @@ try {
     }
 }
 
-// --- 4. HANDLE FORM SUBMISSION (Process Return) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_return'])) {
 
     $invoice_id_fk = isset($_POST['invoice_id']) ? (int) $_POST['invoice_id'] : null;
@@ -148,7 +141,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_return'])) {
     $replace_product_sl_id_fk = !empty($_POST['replacement_product_id']) ? (int) $_POST['replacement_product_id'] : null;
     $created_by = (int) $_SESSION['user_id'];
 
-    // Convert datetime-local to MySQL DATETIME "Y-m-d H:i:s"
     $return_date = null;
     if ($return_date_raw) {
         $dt = DateTime::createFromFormat('Y-m-d\TH:i', $return_date_raw);
@@ -175,7 +167,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_return'])) {
     } else {
         $conn->begin_transaction();
         try {
-            // 1) Insert into sales_return
             $stmt = $conn->prepare("
                 INSERT INTO sales_return 
                     (invoice_id_fk, invoice_number, return_date, received_product_sl_id_fk, replace_product_sl_id_fk, created_by)
@@ -196,7 +187,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_return'])) {
                 throw new Exception("Error creating return record: " . $stmt->error);
             }
 
-            // 2) Update the returned product status => 3 (Damage)
             $updateReturned = $conn->prepare("UPDATE product_sl SET status = ? WHERE sl_id = ?");
             $statusDamage = 2; // 2 = Return
             $updateReturned->bind_param("ii", $statusDamage, $received_product_sl_id_fk);
@@ -204,9 +194,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_return'])) {
                 throw new Exception("Failed to update returned product status: " . $updateReturned->error);
             }
 
-            // 3) If replacement selected, update its status => 4 (Replaced)
             if ($replace_product_sl_id_fk) {
-                // Optional: ensure replacement product isn't the same as received product
                 if ($replace_product_sl_id_fk == $received_product_sl_id_fk) {
                     throw new Exception("Replacement product cannot be the same as the returned (damaged) product.");
                 }
@@ -412,7 +400,6 @@ $(document).ready(function() {
         $('#searchInvoiceNo').val(selectedInvoice);
         $('#invoiceSuggestions').hide();
 
-        // Fetch invoice details
         $.ajax({
             url: '?action=get_invoice_details',
             type: 'GET',
@@ -426,7 +413,6 @@ $(document).ready(function() {
                     $('#displayAddress').text(res.invoice.address || '-');
                     $('#displayDate').text(res.invoice.invoice_date || '-');
 
-                    // Show product list for return selection
                     var productsHtml = '';
                     if(res.products.length > 0) {
                         $.each(res.products, function(i, product) {
@@ -456,7 +442,6 @@ $(document).ready(function() {
         });
     });
 
-    // Select returned product on click
     $(document).on('click', '.product-select-card', function() {
         $('.product-select-card').removeClass('selected');
         $(this).addClass('selected');
@@ -465,7 +450,6 @@ $(document).ready(function() {
         $('#btnSubmit').prop('disabled', false);
     });
 
-    // Toggle replacement section visibility
     $('#hasReplacement').change(function() {
         if($(this).is(':checked')) {
             $('#replacementSection').slideDown();
@@ -477,7 +461,6 @@ $(document).ready(function() {
         }
     });
 
-    // Check replacement product availability
     $('#btnCheckReplacement').click(function() {
         var serialNo = $('#replacementSerialInput').val().trim();
         var returnedId = $('#returnedProductId').val();
@@ -504,7 +487,6 @@ $(document).ready(function() {
                         $('#replacementProductId').val('');
                         return;
                     }
-                    // Check product status here if needed via extra AJAX or extend the response to include status
                     $('#replacementProductId').val(res.data.sl_id);
                     $('#replacementFeedback').text(`Available: Model ID ${res.data.model_id_fk}, Serial: ${serialNo}`).css('color', 'green');
                 } else {
@@ -519,7 +501,6 @@ $(document).ready(function() {
         });
     });
 
-    // Disable submit if no product selected
     $('#returnedProductId').on('change', function() {
         $('#btnSubmit').prop('disabled', !$(this).val());
     });
