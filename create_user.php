@@ -5,8 +5,7 @@ $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
 
-// --- START: ADMIN ROLE CHECK ---
-$user_role = 0; // Default to non-admin
+$user_role = 0; 
 $sql_role_check = "SELECT role FROM users WHERE user_id = ?";
 $stmt_role_check = $conn->prepare($sql_role_check);
 $stmt_role_check->bind_param("i", $current_user_id);
@@ -17,18 +16,15 @@ if($row_role = $result_role_check->fetch_assoc()) {
 }
 $stmt_role_check->close();
 
-if ($user_role != 1) { // 1 = Admin role
-    // Redirect non-admins to the dashboard with an error message
+if ($user_role != 1) { 
     $_SESSION['error_message'] = "Access Denied: You do not have permission to create users.";
     header("Location: dashboard.php");
     exit();
 }
-// --- END: ADMIN ROLE CHECK ---
 
 
 $successMessage = ''; $errorMessage = '';
 
-// --- PHP Form Processing Logic ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     $user_name = trim($_POST['user_name']);
@@ -36,11 +32,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $phone = trim($_POST['phone']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
-    $role = isset($_POST['role']) ? intval($_POST['role']) : 0;     // Default to 0 (User)
-    // *** NEW: Get branch_id, allow NULL ***
+    $role = isset($_POST['role']) ? intval($_POST['role']) : 0;
     $branch_id_fk = !empty($_POST['branch_id']) ? intval($_POST['branch_id']) : null;
 
-    // Basic server-side validation
     if (empty($user_name) || empty($email) || empty($password) || empty($confirm_password)) {
          $errorMessage = "Please fill in all required fields (Full Name, Email, Password, Confirm Password).";
     } elseif ($password !== $confirm_password) {
@@ -50,13 +44,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
 
-        // *** MODIFIED: Added branch_id_fk to SQL INSERT ***
         $sql = "INSERT INTO users (user_name, email, phone, password_hash, role, branch_id_fk, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)";
         
         $stmt = $conn->prepare($sql);
         
         if ($stmt) {
-            // *** MODIFIED: Bind 7 params (ssssiii) ***
             $stmt->bind_param("ssssiii", $user_name, $email, $phone, $password_hash, $role, $branch_id_fk, $current_user_id);
             
             if ($stmt->execute()) {
@@ -73,13 +65,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Error preparing statement: " . $conn->error;
         }
     }
-    // *** MODIFICATION: Connection close moved down to allow branch fetching ***
 }
 
-// --- Fetch Branch List for Dropdown ---
 $branches_result = $conn->query("SELECT branch_id, Name FROM Branch WHERE is_deleted = FALSE ORDER BY Name");
 $branches = $branches_result ? $branches_result->fetch_all(MYSQLI_ASSOC) : [];
-$conn->close(); // Connection is now closed after all data is fetched
+$conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -119,7 +109,6 @@ $conn->close(); // Connection is now closed after all data is fetched
                     <input type="tel" id="phone" name="phone" placeholder="+880 12 3456 7890" class="w-full p-3 border border-gray-300 rounded-lg">
                 </div>
 
-                <!-- *** NEW: Branch and Role fields in a grid *** -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label for="branch_id" class="block text-sm font-medium text-gray-700 mb-1">Assign to Branch</label>
@@ -160,7 +149,6 @@ $conn->close(); // Connection is now closed after all data is fetched
     </main>
     
 <script>
-    // --- Password Visibility Toggle ---
     const eyeIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg>`;
     const eyeSlashIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd" /><path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.742L2.303 3.707a1 1 0 011.414-1.414l14 14a1 1 0 01-1.414 1.414l-4.26-4.26z" /></svg>`;
 
@@ -172,7 +160,6 @@ $conn->close(); // Connection is now closed after all data is fetched
     setupPasswordToggle('password', 'togglePassword');
     setupPasswordToggle('confirm_password', 'toggleConfirmPassword');
 
-    // --- Client-Side Password Match Validation ---
     const form = document.querySelector('form');
     const passwordError = document.getElementById('password-error');
     form.addEventListener('submit', (event) => {
@@ -181,7 +168,6 @@ $conn->close(); // Connection is now closed after all data is fetched
         if (p1 !== p2) { event.preventDefault(); passwordError.textContent = "Passwords do not match!"; }
     });
 
-    // Auto-hide alerts
     const alertBox = document.getElementById('alert-box');
     if (alertBox) { setTimeout(() => { alertBox.style.transition = 'opacity 0.5s ease'; alertBox.style.opacity = '0'; setTimeout(() => alertBox.remove(), 500); }, 5000); }
 </script>
