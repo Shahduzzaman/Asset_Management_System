@@ -3,16 +3,12 @@ require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
 
-// Include the database connection
 require_once 'connection.php';
 
-// --- Part 1: Handle API requests for dynamic dropdowns ---
-// This part of the code responds to JavaScript fetch requests
 if (isset($_GET['get'])) {
     header('Content-Type: application/json');
     $response = [];
 
-    // Request to get brands for a specific category
     if ($_GET['get'] === 'brands' && isset($_GET['category_id'])) {
         $categoryId = intval($_GET['category_id']);
         $sql = "SELECT brand_id, brand_name FROM brands WHERE category_id = ? AND is_deleted = FALSE ORDER BY brand_name";
@@ -26,7 +22,6 @@ if (isset($_GET['get'])) {
         $stmt->close();
     }
 
-    // Request to get models for a specific brand
     if ($_GET['get'] === 'models' && isset($_GET['brand_id'])) {
         $brandId = intval($_GET['brand_id']);
         $sql = "SELECT model_id, model_name FROM models WHERE brand_id = ? AND is_deleted = FALSE ORDER BY model_name";
@@ -42,11 +37,9 @@ if (isset($_GET['get'])) {
 
     echo json_encode($response);
     $conn->close();
-    exit(); // Stop script execution after sending JSON data
+    exit();
 }
 
-
-// --- Part 2: Handle Form Submissions (POST requests) ---
 $successMessage = '';
 $errorMessage = '';
 
@@ -54,7 +47,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $action = $_POST['action'] ?? '';
     $created_by = $_SESSION['user_id'];
 
-    // Action: Add a new category
     if ($action === 'add_category' && !empty($_POST['category_name'])) {
         $categoryName = trim($_POST['category_name']);
         $sql = "INSERT INTO categories (category_name, created_by) VALUES (?, ?)";
@@ -68,7 +60,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
     }
 
-    // Action: Add a new brand
     elseif ($action === 'add_brand' && !empty($_POST['brand_name']) && !empty($_POST['category_id_for_brand'])) {
         $brandName = trim($_POST['brand_name']);
         $categoryId = intval($_POST['category_id_for_brand']);
@@ -83,7 +74,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
     }
 
-    // Action: Add a new model
     elseif ($action === 'add_model' && !empty($_POST['model_name']) && !empty($_POST['category_id_for_model']) && !empty($_POST['brand_id_for_model'])) {
         $modelName = trim($_POST['model_name']);
         $categoryId = intval($_POST['category_id_for_model']);
@@ -99,13 +89,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
     }
     
-    // Handle cases where required fields are missing
     elseif (empty($errorMessage)) {
         $errorMessage = "A required field was missing. Please try again.";
     }
 }
 
-// --- Part 3: Fetch initial data for the page load ---
 $categories = [];
 $sql = "SELECT category_id, category_name FROM categories WHERE is_deleted = FALSE ORDER BY category_name";
 $result = $conn->query($sql);
@@ -116,7 +104,6 @@ if ($result) {
 }
 $conn->close();
 
-// Check if the page is loaded in a modal context
 $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
 ?>
 
@@ -132,7 +119,7 @@ $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
         body { font-family: 'Inter', sans-serif; }
         .hidden-form { max-height: 0; overflow: hidden; transition: max-height 0.5s ease-in-out; }
         .visible-form { max-height: 500px; }
-        /* Adjustments for running inside an iframe */
+
         <?php if ($isModal): ?>
         body { background-color: #f9fafb; }
         html, body { height: 100%; overflow: auto; }
@@ -143,12 +130,10 @@ $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         
-        <!-- Header and Navigation -->
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-800">Product Hierarchy Management</h1>
         </div>
 
-        <!-- Success and Error Messages -->
         <?php if ($successMessage): ?>
             <div id="alert-box" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
                 <strong class="font-bold">Success!</strong>
@@ -162,10 +147,8 @@ $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
             </div>
         <?php endif; ?>
 
-        <!-- Main Content Grid -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             
-            <!-- Column 1: Category Management -->
             <div class="bg-white p-6 rounded-xl shadow-md">
                 <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">1. Select or Add Category</h2>
                 <div class="space-y-4">
@@ -178,7 +161,6 @@ $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
                         <option value="add_new" class="font-bold text-indigo-600">-- Add New Category --</option>
                     </select>
 
-                    <!-- Hidden form to add a new category -->
                     <div id="newCategoryForm" class="hidden-form">
                         <form method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?><?php echo $isModal ? '?context=modal' : ''; ?>" class="space-y-4 pt-4 border-t">
                             <input type="hidden" name="action" value="add_category">
@@ -192,7 +174,6 @@ $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
                 </div>
             </div>
 
-            <!-- Column 2: Brand Management -->
             <div class="bg-white p-6 rounded-xl shadow-md">
                 <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">2. Select or Add Brand</h2>
                 <div class="space-y-4">
@@ -201,7 +182,6 @@ $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
                         <option value="">-- Select a Category First --</option>
                     </select>
 
-                    <!-- Hidden form to add a new brand -->
                     <div id="newBrandForm" class="hidden-form">
                          <form method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?><?php echo $isModal ? '?context=modal' : ''; ?>" class="space-y-4 pt-4 border-t">
                             <input type="hidden" name="action" value="add_brand">
@@ -216,7 +196,6 @@ $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
                 </div>
             </div>
 
-            <!-- Column 3: Model Management -->
             <div class="bg-white p-6 rounded-xl shadow-md">
                 <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">3. Select or Add Model</h2>
                 <div class="space-y-4">
@@ -225,7 +204,6 @@ $isModal = isset($_GET['context']) && $_GET['context'] === 'modal';
                         <option value="">-- Select a Brand First --</option>
                     </select>
 
-                    <!-- Hidden form to add a new model -->
                     <div id="newModelForm" class="hidden-form">
                         <form method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?><?php echo $isModal ? '?context=modal' : ''; ?>" class="space-y-4 pt-4 border-t">
                             <input type="hidden" name="action" value="add_model">
