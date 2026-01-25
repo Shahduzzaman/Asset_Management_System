@@ -1,9 +1,8 @@
 <?php
-// paid_invoice_list.php
+
 require_once 'session_guard.php';
 require_once 'connection.php';
 
-// --- AJAX SEARCH HANDLER ---
 if (isset($_GET['action']) && $_GET['action'] === 'search') {
     $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 
@@ -18,7 +17,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
     $types = "";
 
     if (!empty($search)) {
-        // Smart Status Search Logic
         $status_search_sql = "";
         $s_lower = strtolower($search);
         
@@ -50,13 +48,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
 
     if ($result->num_rows > 0) {
         while ($row = $result->fetch_assoc()) {
-            // Client Name Logic
             $client = !empty($row['Branch_Name']) ? $row['Branch_Name'] : $row['Company_Name'];
             if (!empty($row['Branch_Name']) && !empty($row['Company_Name'])) {
                 $client = $row['Company_Name'] . " <span class='text-gray-400 text-xs'>(" . $row['Branch_Name'] . ")</span>";
             }
 
-            // Status Badge
             $status_badges = [
                 0 => ['Due', 'bg-red-100 text-red-800'],
                 1 => ['Partial', 'bg-yellow-100 text-yellow-800'],
@@ -78,7 +74,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
     }
     exit();
 }
-// --- END AJAX HANDLER ---
+
 ?>
 
 <!DOCTYPE html>
@@ -156,9 +152,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
         const modalContent = document.getElementById('modal-content');
         let debounceTimer;
 
-        // --- Fetch List ---
         function fetchInvoices(query = '') {
-            // UPDATED FILENAME HERE:
             fetch(`paid_invoice_list.php?action=search&q=${encodeURIComponent(query)}`)
                 .then(res => res.text())
                 .then(html => {
@@ -169,20 +163,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
                 });
         }
 
-        // --- Event Listeners ---
         searchInput.addEventListener('input', (e) => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 fetchInvoices(e.target.value);
-            }, 300); // 300ms debounce
+            }, 300);
         });
 
-        // --- Modal Functions ---
         function openInvoiceModal(id) {
             modal.classList.remove('hidden');
             modalContent.innerHTML = '<div class="flex justify-center py-12"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>';
             
-            // UPDATED FILENAME HERE:
             fetch(`view_paid_invoice.php?id=${id}`)
                 .then(res => res.text())
                 .then(html => {
@@ -197,21 +188,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
             modal.classList.add('hidden');
         }
 
-        // Close on Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
                 closeInvoiceModal();
             }
         });
 
-        // Initial Load
         fetchInvoices();
         function printFromUrl(url) {
-            // Remove old iframe if exists to ensure clean load
             const oldFrame = document.getElementById('hidden_print_frame');
             if (oldFrame) oldFrame.remove();
 
-            // Create hidden iframe
             const iframe = document.createElement('iframe');
             iframe.id = 'hidden_print_frame';
             iframe.style.position = 'fixed';
@@ -221,7 +208,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
             iframe.style.height = '0';
             iframe.style.border = 'none';
             
-            // Set URL (The receipt page auto-prints on load)
             iframe.src = url;
             
             document.body.appendChild(iframe);
