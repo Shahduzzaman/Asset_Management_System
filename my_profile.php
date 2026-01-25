@@ -8,11 +8,9 @@ require_once 'connection.php';
 $profileSuccessMessage = ''; $profileErrorMessage = '';
 $passwordSuccessMessage = ''; $passwordErrorMessage = '';
 
-// --- Handle Form Submissions (POST) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $action = $_POST['action'] ?? '';
 
-    // --- ACTION: UPDATE PROFILE INFORMATION ---
     if ($action === 'update_profile') {
         $user_name = trim($_POST['user_name']);
         $phone = trim($_POST['phone']);
@@ -25,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt->bind_param("ssi", $user_name, $phone, $current_user_id);
             if ($stmt->execute()) {
                 $profileSuccessMessage = "Profile information updated successfully.";
-                $_SESSION['user_name'] = $user_name; // Update session name
+                $_SESSION['user_name'] = $user_name;
             } else {
                 $profileErrorMessage = "Error updating profile: " . $stmt->error;
             }
@@ -33,7 +31,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // --- ACTION: CHANGE PASSWORD ---
     if ($action === 'change_password') {
         $current_password = $_POST['current_password'];
         $new_password = $_POST['new_password'];
@@ -44,7 +41,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } elseif ($new_password !== $confirm_new_password) {
             $passwordErrorMessage = "The new passwords do not match.";
         } else {
-            // First, get the current password hash from the DB
             $sql_select = "SELECT password_hash FROM users WHERE user_id = ?";
             $stmt_select = $conn->prepare($sql_select);
             $stmt_select->bind_param("i", $current_user_id);
@@ -53,9 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $user = $result->fetch_assoc();
             $stmt_select->close();
 
-            // Verify the current password
             if ($user && password_verify($current_password, $user['password_hash'])) {
-                // If correct, hash the new password and update the DB
                 $new_password_hash = password_hash($new_password, PASSWORD_DEFAULT);
                 $sql_update = "UPDATE users SET password_hash = ?, is_updated = TRUE WHERE user_id = ?";
                 $stmt_update = $conn->prepare($sql_update);
@@ -73,7 +67,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// --- Fetch current user data for display ---
 $sql_user = "SELECT user_name, email, phone FROM users WHERE user_id = ?";
 $stmt_user = $conn->prepare($sql_user);
 $stmt_user->bind_param("i", $current_user_id);
@@ -100,7 +93,7 @@ $conn->close();
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <!-- Profile Information Section -->
+
             <div class="bg-white p-8 rounded-xl shadow-md">
                 <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Profile Information</h2>
                 <?php if ($profileSuccessMessage): ?><div class="bg-green-100 border-green-400 text-green-700 px-4 py-3 rounded-lg mb-6"><span><?php echo $profileSuccessMessage; ?></span></div><?php endif; ?>
@@ -126,7 +119,6 @@ $conn->close();
                 </form>
             </div>
 
-            <!-- Change Password Section -->
             <div class="bg-white p-8 rounded-xl shadow-md">
                 <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Change Password</h2>
                 <?php if ($passwordSuccessMessage): ?><div class="bg-green-100 border-green-400 text-green-700 px-4 py-3 rounded-lg mb-6"><span><?php echo $passwordSuccessMessage; ?></span></div><?php endif; ?>
@@ -184,7 +176,6 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Modals -->
     <div id="confirm-update-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col">
             <div class="p-4 border-b"><h2 class="text-xl font-semibold">Confirm Changes</h2></div>
@@ -203,7 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModal = modalEl => modalEl.classList.remove('is-open');
     confirmModal.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', () => closeModal(confirmModal)));
 
-    // --- Profile Update Confirmation Logic ---
     document.getElementById('update-profile-btn').addEventListener('click', () => {
         const nameInput = document.getElementById('user_name');
         const phoneInput = document.getElementById('phone');
@@ -241,7 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('profile-form').submit();
     });
     
-    // --- Password Form Validation ---
     const passwordForm = document.getElementById('password-form');
     const newPassword = document.getElementById('new_password');
     const confirmNewPassword = document.getElementById('confirm_new_password');
@@ -249,13 +238,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     passwordForm.addEventListener('submit', (e) => {
         if (newPassword.value !== confirmNewPassword.value) {
-            e.preventDefault(); // Stop form submission
+            e.preventDefault();
             passwordErrorMsg.textContent = 'Passwords do not match.';
         } else {
             passwordErrorMsg.textContent = '';
         }
     });
-    // --- Password Visibility Toggle Logic ---
     document.querySelectorAll('.toggle-password').forEach(button => {
         button.addEventListener('click', () => {
             const targetId = button.getAttribute('data-target');
