@@ -10,10 +10,6 @@ if (!isset($_GET['id'])) {
 
 $invoice_id = (int)$_GET['id'];
 $is_print = isset($_GET['print']) && $_GET['print'] == 'true';
-
-/* ---------------------------------------
-   1. Fetch Invoice/Challan Master Data
------------------------------------------ */
 $sql_master = "SELECT 
                 inv.Invoice_No,
                 inv.created_at as invoice_date,
@@ -44,9 +40,6 @@ if (!$invoice) {
     die("Invoice not found.");
 }
 
-/* ---------------------------------------
-   2. Fetch Items
------------------------------------------ */
 $sql_items = "SELECT 
                 sp.Quantity,
                 sp.Remarks as item_remarks,
@@ -69,9 +62,7 @@ $stmt_items->bind_param("i", $invoice_id);
 $stmt_items->execute();
 $result_items = $stmt_items->get_result();
 
-/* ---------------------------------------
-   Group Items Logic
------------------------------------------ */
+
 $grouped_items = [];
 while ($row = $result_items->fetch_assoc()) {
     $key = $row['model_name'];
@@ -96,9 +87,6 @@ while ($row = $result_items->fetch_assoc()) {
     }
 }
 
-/* ---------------------------------------
-   Client Info Logic
------------------------------------------ */
 $client_name = $invoice['Company_Name'] ?? '';
 $branch_name = $invoice['Branch_Name'] ?? '';
 $display_name = 'Walk-in Client';
@@ -115,9 +103,7 @@ if (!empty($client_name)) {
 $display_addr = !empty($invoice['Branch_Address']) ? $invoice['Branch_Address'] : ($invoice['Head_Address'] ?? '');
 $display_phone = !empty($invoice['Branch_Phone']) ? $invoice['Branch_Phone'] : ($invoice['Head_Phone'] ?? '');
 
-/* ---------------------------------------
-   Footer Data
------------------------------------------ */
+
 date_default_timezone_set('Asia/Dhaka');
 $print_datetime = date("d-M-Y h:i A");
 $printed_by = isset($_SESSION['user_name']) ? $_SESSION['user_name'] : 'System Admin'; 
@@ -131,7 +117,7 @@ $printed_by = isset($_SESSION['user_name']) ? $_SESSION['user_name'] : 'System A
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
 <style>
-/* Base Reset */
+
 *{margin:0;padding:0;box-sizing:border-box;}
 body{
     font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
@@ -140,7 +126,6 @@ body{
     font-size: 12px;
 }
 
-/* A4 Container */
 .page-container{
     width:210mm;
     min-height:297mm;
@@ -153,7 +138,6 @@ body{
     flex-direction: column;
 }
 
-/* HEADER */
 .header{
     display:flex;
     justify-content:space-between;
@@ -168,7 +152,6 @@ body{
 .company-text p{font-size:12px;color:#2563eb;font-style:italic;}
 .company-address{text-align:right;font-size:11px;color:#444; line-height: 1.4;}
 
-/* TITLE */
 .invoice-title{
     text-align:center;
     margin: 0 auto 20px auto; 
@@ -179,7 +162,6 @@ body{
 }
 .invoice-title h2{font-size:18px;font-weight:800;letter-spacing:2px; text-transform: uppercase; margin: 0;}
 
-/* INFO BLOCKS */
 .info-grid{display:flex;justify-content:space-between;margin-bottom:20px; gap:30px;}
 .bill-to{flex:1;}
 .bill-to h4{font-size:12px; font-weight:700; text-transform:uppercase; color:#555; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 8px;}
@@ -192,20 +174,17 @@ body{
 .meta-key{font-weight:600;color:#555;text-align:left;}
 .meta-val{font-weight:700;color:#000;text-align:right;}
 
-/* INTRO PARAGRAPH */
 .challan-intro {
     font-size: 12px;
     margin-bottom: 25px;
-    text-align: left; /* Changed to left align */
+    text-align: left; 
     line-height: 1.6;
     color: #333;
-    /* Removed heavy styling for cleaner look */
     padding: 0;
     border: none;
     background: transparent;
 }
 
-/* TABLE */
 .items-table{
     width:100%;
     border-collapse:collapse;
@@ -229,7 +208,6 @@ body{
 }
 .col-center{text-align:center;}
 
-/* SIGNATURE SECTION */
 .signature-section {
     margin-top: auto; 
     padding-top: 20px;
@@ -263,9 +241,8 @@ body{
 .sig-field-row {
     display: flex;
     margin-bottom: 6px;
-    align-items: baseline; /* Default alignment */
+    align-items: baseline; 
 }
-/* Specific style for seal row to align bottom */
 .sig-field-row.seal-row {
     align-items: flex-end;
 }
@@ -276,10 +253,9 @@ body{
     height: 16px;
 }
 .sig-field-input.seal-space {
-    height: 60px; /* Big space for seal */
+    height: 60px;
 }
 
-/* FOOTER META */
 .footer-meta-row {
     display: flex; 
     justify-content: space-between; 
@@ -292,7 +268,6 @@ body{
     padding-top: 5px;
 }
 
-/* PRINT MODE */
 @media print {
     @page { margin: 0; size: auto; }
     body{background:white;margin:0;}
@@ -303,7 +278,6 @@ body{
     .items-table th { -webkit-print-color-adjust: exact; background: #e5e7eb !important; }
 }
 
-/* Buttons */
 .actions{position:fixed;top:20px;right:20px;z-index:999;display:flex;gap:10px;}
 .btn{padding:10px 15px;border-radius:5px;border:none;cursor:pointer;font-weight:bold;box-shadow:0 2px 5px rgba(0,0,0,0.2);}
 .btn-print{background:#2563eb;color:white;}
@@ -473,15 +447,12 @@ body{
 
 <script>
 window.onload = function(){
-    // Simple estimation for total pages based on A4 height (px at 96dpi)
     const approximatePageHeight = 1123; 
     const scrollHeight = document.body.scrollHeight;
     const totalPages = Math.max(1, Math.ceil(scrollHeight / approximatePageHeight));
     
-    // Update total pages text
     document.querySelectorAll('.page-total').forEach(el => el.textContent = totalPages);
     
-    // Set Document Title for PDF
     document.title = "DC-<?php echo htmlspecialchars($invoice['Invoice_No']); ?>";
     
     <?php if($is_print): ?>
