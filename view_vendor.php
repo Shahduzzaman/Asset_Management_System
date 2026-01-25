@@ -1,17 +1,15 @@
 <?php
 require_once 'session_guard.php';
 $current_user_id = $_SESSION['user_id'];
-$user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0; // Get user role
-// --- END: SESSION & SECURITY CHECKS ---
+$user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0; 
+
 
 require_once 'connection.php';
 
-// --- Part 1: API Request Handler (AJAX) ---
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $response = ['status' => 'error', 'message' => 'Invalid request'];
 
-    // Action: Get details for a single vendor
     if ($_GET['action'] === 'get_vendor_details' && isset($_GET['id'])) {
         $id = intval($_GET['id']);
         $sql = "SELECT * FROM vendors WHERE vendor_id = ?";
@@ -24,7 +22,6 @@ if (isset($_GET['action'])) {
         else $response['message'] = 'Vendor not found.';
     }
 
-    // Action: Update a vendor (Admin Only)
     if ($_GET['action'] === 'update_vendor' && $_SERVER['REQUEST_METHOD'] === 'POST' && $user_role === 1) {
         $data = json_decode(file_get_contents('php://input'), true);
         try {
@@ -45,7 +42,6 @@ if (isset($_GET['action'])) {
         }
     }
     
-    // Action: Soft delete a vendor (Admin Only)
     if ($_GET['action'] === 'delete_vendor' && $_SERVER['REQUEST_METHOD'] === 'POST' && $user_role === 1) {
         $data = json_decode(file_get_contents('php://input'), true);
         $id = intval($data['vendor_id']);
@@ -65,7 +61,6 @@ if (isset($_GET['action'])) {
     exit();
 }
 
-// --- Part 2: Fetch initial data for page load ---
 header('Content-Type: text/html');
 $vendors_sql = "SELECT * FROM vendors WHERE is_deleted = FALSE ORDER BY vendor_name";
 $vendors = $conn->query($vendors_sql)->fetch_all(MYSQLI_ASSOC);
@@ -89,15 +84,12 @@ $conn->close();
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         
-        <!-- Search Bar -->
         <div class="mb-6">
             <input type="text" id="search-box" placeholder="Search vendors by name, contact, email, or phone..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
 
-        <!-- Global Messages Area -->
         <div id="global-message" class="mb-6"></div>
 
-        <!-- Vendor Table -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
             <div class="overflow-x-auto">
                 <table id="vendor-table" class="min-w-full">
@@ -139,8 +131,6 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Modals -->
-    <!-- View Details Modal -->
     <div id="view-details-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col">
             <div class="p-4 border-b flex justify-between items-center"><h2 id="view-title" class="text-xl font-semibold">Vendor Details</h2><button class="close-modal-btn text-2xl font-bold">&times;</button></div>
@@ -149,7 +139,6 @@ $conn->close();
         </div>
     </div>
     
-    <!-- Edit Modal (Admin Only) -->
     <?php if ($user_role === 1): ?>
     <div id="edit-vendor-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl flex flex-col">
@@ -170,7 +159,6 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Delete Modal (Admin Only) -->
     <div id="delete-confirm-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
             <h2 class="text-xl font-bold mb-4">Confirm Deletion</h2>
@@ -189,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewModal = document.getElementById('view-details-modal');
     const allModals = [viewModal];
     
-    // --- Admin-only variables ---
     const isAdmin = <?php echo $user_role === 1 ? 'true' : 'false'; ?>;
     let editModal, deleteModal;
     if (isAdmin) {
@@ -198,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
         allModals.push(editModal, deleteModal);
     }
     
-    // --- Live Search ---
     const searchBox = document.getElementById('search-box');
     const vendorTableBody = document.querySelector('#vendor-table tbody');
     const filterTable = () => {
@@ -211,12 +197,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     searchBox.addEventListener('input', filterTable);
 
-    // --- Modal Controls ---
     const openModal = modalEl => modalEl.classList.add('is-open');
     const closeModal = modalEl => modalEl.classList.remove('is-open');
     allModals.forEach(modal => modal.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', () => closeModal(modal))));
 
-    // --- Global Message Function ---
     function showGlobalMessage(message, isSuccess = true) {
         const messageDiv = document.getElementById('global-message');
         const alertClass = isSuccess ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700';
@@ -224,7 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => messageDiv.innerHTML = '', 5000);
     }
     
-    // --- Function to open View Modal (Global Scope) ---
     async function openViewModal(id) {
         try {
             const res = await fetch(`?action=get_vendor_details&id=${id}`);
@@ -247,7 +230,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Admin-Only Function Definitions ---
     async function openEditModal(id) {
         if (!isAdmin) return;
         try {
@@ -269,16 +251,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Table Click Event Handler (Unified) ---
     vendorTableBody.addEventListener('click', async e => {
         const row = e.target.closest('tr');
         if (!row || !row.dataset.id) return;
         const id = row.dataset.id;
         const actionButton = e.target.closest('.action-btn');
         
-        if (actionButton) { // An action button was clicked
-            e.stopPropagation(); // Stop row click
-            if (!isAdmin) return; // Ignore if not admin
+        if (actionButton) {
+            e.stopPropagation();
+            if (!isAdmin) return;
             
             if (actionButton.classList.contains('edit-btn')) {
                 openEditModal(id);
@@ -287,14 +268,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 openModal(deleteModal);
             }
         } else {
-            // No action button, just open view modal
             openViewModal(id);
         }
     });
 
-    // --- Admin-Only Listeners (Must be inside if(isAdmin) check) ---
     if (isAdmin) {
-        // Save changes button
         document.getElementById('edit-save-btn').addEventListener('click', async () => {
             const id = document.getElementById('edit-vendor-id').value;
             const payload = {
@@ -318,7 +296,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeModal(editModal);
                 showGlobalMessage('Vendor updated successfully!');
                 
-                // Update table row
                 const row = document.querySelector(`tr[data-id="${id}"]`);
                 if (row) {
                     row.querySelector('.vendor-name').textContent = payload.vendor_name;
@@ -327,13 +304,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     row.querySelector('.email').textContent = payload.email;
                     row.querySelector('.address').textContent = payload.address;
                 }
-                filterTable(); // Re-apply search
+                filterTable();
             } catch (error) {
                 alert('Error updating: ' + error.message);
             }
         });
 
-        // Delete confirm button
         document.getElementById('delete-confirm-btn').addEventListener('click', async () => {
             const id = document.getElementById('delete-vendor-id').value;
             
