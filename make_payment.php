@@ -5,22 +5,20 @@ $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
 
-// --- Part 1: API Request Handler (AJAX for Invoice Search) ---
 if (isset($_GET['action']) && $_GET['action'] === 'search_invoices') {
     header('Content-Type: application/json');
     $response = ['status' => 'error', 'message' => 'Invalid parameters'];
     
     if (isset($_GET['vendor_id']) && isset($_GET['query'])) {
         $vendorId = intval($_GET['vendor_id']);
-        $query = trim($_GET['query']) . '%'; // Add wildcard for search
+        $query = trim($_GET['query']) . '%';
         
-        // Select distinct invoice numbers matching the vendor and query
         $sql = "SELECT DISTINCT invoice_number 
                 FROM purchased_products 
                 WHERE vendor_id = ? AND invoice_number LIKE ? 
                 AND is_deleted = FALSE 
                 ORDER BY invoice_number 
-                LIMIT 10"; // Limit results for performance
+                LIMIT 10";
         
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("is", $vendorId, $query);
@@ -37,21 +35,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'search_invoices') {
     exit();
 }
 
-
-// --- Part 2: Handle Main Form Submission (POST) ---
 $successMessage = ''; $errorMessage = '';
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_payment'])) {
-    header('Content-Type: text/html'); // Set back for page load
+    header('Content-Type: text/html');
 
     $vendor_id = intval($_POST['vendor_id']);
     $invoice_number = trim($_POST['invoice_number']);
     $payment_date = $_POST['payment_date'];
-    $debit_amount = $_POST['debit_amount']; // Should be validated as numeric
-    $payment_method = $_POST['payment_method'] ?? ''; // Radio button value
+    $debit_amount = $_POST['debit_amount'];
+    $payment_method = $_POST['payment_method'] ?? '';
     $payment_info_no = trim($_POST['payment_info_no']);
     $remarks = trim($_POST['remarks']);
 
-    // Basic Server-side Validation
     if (empty($vendor_id) || empty($payment_date) || empty($debit_amount) || empty($payment_method)) {
         $errorMessage = "Please fill in all required fields (Vendor, Date, Amount, Method).";
     } elseif (!is_numeric($debit_amount) || $debit_amount <= 0) {
@@ -59,7 +54,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_payment'])) {
     } else {
         $sql = "INSERT INTO payment_table (vendor_id, invoice_number, payment_date, debit_amount, payment_method, payment_info_no, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
-        // Bind parameters: i = integer, s = string, d = double (for decimal)
         $stmt->bind_param("issdsssi", 
             $vendor_id, 
             $invoice_number, 
@@ -80,8 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_payment'])) {
     }
 }
 
-// --- Part 3: Fetch initial data for page load ---
-header('Content-Type: text/html'); // Ensure HTML output
+header('Content-Type: text/html');
 $vendors = $conn->query("SELECT vendor_id, vendor_name FROM vendors WHERE is_deleted = FALSE ORDER BY vendor_name")->fetch_all(MYSQLI_ASSOC);
 $conn->close();
 ?>
@@ -95,7 +88,6 @@ $conn->close();
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style> 
         body { font-family: 'Inter', sans-serif; } 
-        /* Style for the datalist dropdown */
         #invoice-list option { padding: 4px; } 
     </style>
 </head>
@@ -182,12 +174,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const vendorId = vendorSelect.value;
         const query = invoiceInput.value.trim();
 
-        // Clear previous timeout
         clearTimeout(searchTimeout);
-        invoiceList.innerHTML = ''; // Clear previous suggestions
+        invoiceList.innerHTML = '';
 
-        if (vendorId && query.length > 0) { // Require vendor and at least 1 char
-            // Debounce the search: wait 300ms after typing stops
+        if (vendorId && query.length > 0) {
             searchTimeout = setTimeout(async () => {
                 try {
                     const response = await fetch(`?action=search_invoices&vendor_id=${vendorId}&query=${encodeURIComponent(query)}`);
@@ -207,13 +197,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Clear invoice suggestions if vendor changes
     vendorSelect.addEventListener('change', () => {
-        invoiceInput.value = ''; // Clear input
-        invoiceList.innerHTML = ''; // Clear suggestions
+        invoiceInput.value = '';
+        invoiceList.innerHTML = '';
     });
 
-    // Auto-hide alert messages
     const alertBox = document.getElementById('alert-box');
     if (alertBox) { setTimeout(() => { alertBox.style.transition = 'opacity 0.5s ease'; alertBox.style.opacity = '0'; setTimeout(() => alertBox.remove(), 500); }, 5000); }
 });
