@@ -4,38 +4,29 @@ require_once 'session_guard.php';
 require_once 'connection.php';
 
 
-// --- Helper utilities -----------------------------------------------------
 function to_int($v) { return (int)$v; }
 
-/**
- * Run a query and return first row assoc or null on failure/empty.
- * This prevents fatal errors when a query fails.
- */
 function fetch_row_assoc($conn, $sql) {
     $res = $conn->query($sql);
     if ($res && $row = $res->fetch_assoc()) return $row;
     return null;
 }
 
-/**
- * Run a query that returns a single scalar value (like SUM or COUNT) and return default on failure.
- */
+
 function fetch_scalar($conn, $sql, $key = null, $default = 0) {
     $row = fetch_row_assoc($conn, $sql);
     if (!$row) return $default;
     if ($key === null) {
-        // take first value
+
         $vals = array_values($row);
         return isset($vals[0]) ? $vals[0] : $default;
     }
     return isset($row[$key]) ? $row[$key] : $default;
 }
 
-// If called as AJAX details endpoint, return modal content and exit.
 if (isset($_GET['mode']) && $_GET['mode'] === 'details' && isset($_GET['model_id'])) {
     $model_id = (int) $_GET['model_id'];
 
-    // 1) If model has serials, list serials with status & purchase invoice + branch
     $sqlSerialCheck = "SELECT COUNT(*) AS serial_total FROM product_sl WHERE model_id_fk = {$model_id}";
     $serialTotal = to_int(fetch_scalar($conn, $sqlSerialCheck, 'serial_total', 0));
 
@@ -93,7 +84,6 @@ if (isset($_GET['mode']) && $_GET['mode'] === 'details' && isset($_GET['model_id
         <?php else: ?>
             <h4 class="text-lg font-semibold">Quantity-based stock (non-serialized)</h4>
             <?php
-            // Show purchased / sold summary and recent purchases
             $sqlQty = "SELECT 
                         IFNULL((SELECT SUM(quantity) FROM purchased_products WHERE model_id = {$model_id} AND is_deleted = 0),0) AS total_purchased,
                         IFNULL((SELECT SUM(Quantity) FROM sold_product WHERE model_id_fk = {$model_id} AND is_deleted = 0),0) AS total_sold";
@@ -168,26 +158,21 @@ if (isset($_GET['mode']) && $_GET['mode'] === 'details' && isset($_GET['model_id
     exit();
 }
 
-// --- Page: Stock Monitor ---
-// Read filters
-$selected_category = isset($_GET['category_id']) ? (int) $_GET['category_id'] : 0; // 0 => all
-$selected_branch = isset($_GET['branch_id']) ? (int) $_GET['branch_id'] : 0;     // 0 => all
+$selected_category = isset($_GET['category_id']) ? (int) $_GET['category_id'] : 0;
+$selected_branch = isset($_GET['branch_id']) ? (int) $_GET['branch_id'] : 0;
 
-// Fetch categories for dropdown
 $cats = [];
 $catSql = "SELECT category_id, category_name FROM categories WHERE is_deleted = 0 ORDER BY category_name";
 if ($res = $conn->query($catSql)) {
     while ($row = $res->fetch_assoc()) $cats[] = $row;
 }
 
-// Fetch branches
 $branches = [];
 $brSql = "SELECT branch_id, Name FROM branch ORDER BY Name";
 if ($res = $conn->query($brSql)) {
     while ($row = $res->fetch_assoc()) $branches[] = $row;
 }
 
-// Fetch models (optionally filtered by category)
 $models = [];
 $modelSql = "SELECT m.model_id, m.model_name, b.brand_name, m.category_id
              FROM models m
@@ -206,11 +191,10 @@ if ($res = $conn->query($modelSql)) {
 <title>Stock Monitor - AMS</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<!-- Tailwind (same as your file) -->
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- Font Awesome -->
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
-<!-- jQuery -->
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 </head>
@@ -278,21 +262,16 @@ if ($res = $conn->query($modelSql)) {
                                 $i++;
                                 $model_id = (int)$m['model_id'];
 
-                                // total purchased
                                 $sqlPurchased = "SELECT IFNULL(SUM(quantity),0) AS total_purchased FROM purchased_products WHERE model_id = {$model_id} AND is_deleted = 0";
                                 if ($selected_branch > 0) $sqlPurchased .= " AND branch_id_fk = {$selected_branch}";
                                 $total_purchased = to_int(fetch_scalar($conn, $sqlPurchased, 'total_purchased', 0));
 
-                                // total sold
-                                // IMPORTANT: only count sales that are recorded against the selected client_branch (if branch filter applied).
                                 $sqlSold = "SELECT IFNULL(SUM(Quantity),0) AS total_sold FROM sold_product WHERE model_id_fk = {$model_id} AND is_deleted = 0";
                                 if ($selected_branch > 0) {
-                                    // Count only those sold to that client branch (client_branch_id_fk = selected_branch).
                                     $sqlSold .= " AND client_branch_id_fk = {$selected_branch}";
                                 }
                                 $total_sold = to_int(fetch_scalar($conn, $sqlSold, 'total_sold', 0));
 
-                                // serial totals & in-stock (we still compute serials to decide method)
                                 $sqlSerialTotal = "SELECT COUNT(*) AS serial_total FROM product_sl WHERE model_id_fk = {$model_id}";
                                 $serial_total = to_int(fetch_scalar($conn, $sqlSerialTotal, 'serial_total', 0));
 
@@ -332,8 +311,8 @@ if ($res = $conn->query($modelSql)) {
                             </td>
                         </tr>
                         <?php
-                            } // end foreach models
-                        } // end else models
+                            }
+                        }
                         ?>
                     </tbody>
                 </table>
@@ -346,7 +325,6 @@ if ($res = $conn->query($modelSql)) {
         </p>
     </div>
 
-    <!-- Modal -->
     <div id="modelModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
         <div class="relative top-10 mx-auto p-0 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-md bg-white">
             <div class="flex justify-between items-center bg-gray-100 px-4 py-2 border-b rounded-t-md">
