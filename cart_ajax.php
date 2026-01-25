@@ -3,27 +3,22 @@ require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
 
-// --- JSON header & error reporting (errors logged, not shown to user) ---
 header('Content-Type: application/json; charset=utf-8');
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 
-require_once 'connection.php'; // expects $conn (mysqli)
+require_once 'connection.php';
 
-// Router
 $action = $_GET['action'] ?? null;
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Flag for transaction handling
 $inTransaction = false;
 
 try {
-    // Make mysqli throw exceptions
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
     switch ($action) {
 
-        // --- get brands by category ---
         case 'get_brands_by_category':
             $category_id = (int)($_GET['category_id'] ?? 0);
             $stmt = $conn->prepare("SELECT brand_id, brand_name FROM brands WHERE category_id = ? AND is_deleted = 0 ORDER BY brand_name");
@@ -34,7 +29,6 @@ try {
             send_json(['status' => 'success', 'brands' => $brands]);
             break;
 
-        // --- get models by brand ---
         case 'get_models_by_brand':
             $brand_id = (int)($_GET['brand_id'] ?? 0);
             $stmt = $conn->prepare("SELECT model_id, model_name FROM models WHERE brand_id = ? AND is_deleted = 0 ORDER BY model_name");
@@ -45,7 +39,6 @@ try {
             send_json(['status' => 'success', 'models' => $models]);
             break;
 
-        // --- available quantity (non-serial) ---
         case 'available_quantity':
             $model_id = (int)($_GET['model_id'] ?? 0);
 
@@ -65,7 +58,6 @@ try {
             send_json(['status' => 'success', 'available' => $available]);
             break;
 
-        // --- avg & max purchase price for model ---
         case 'get_avg_max_price':
             $model_id = (int)($_GET['model_id'] ?? 0);
 
@@ -83,12 +75,8 @@ try {
             ]);
             break;
 
-        // --- list available serials for a model ---
         case 'get_serials_for_model':
             $model_id = (int)($_GET['model_id'] ?? 0);
-
-            // product_sl uses model_id_fk and has 'status' column (0=available,1=reserved/sold)
-            // left join with cart to ensure serial isn't already in someone's cart
             $sql = "SELECT sl.sl_id, sl.product_sl
                     FROM product_sl sl
                     LEFT JOIN cart ct ON sl.sl_id = ct.product_sl_id_fk
@@ -104,7 +92,6 @@ try {
             send_json(['status' => 'success', 'serials' => $serials]);
             break;
 
-        // --- get cart contents (warranty from purchased_products via product_sl.purchase_id_fk) ---
         case 'get_cart_contents':
             $sql = "SELECT 
                         c.cart_id,
@@ -115,9 +102,8 @@ try {
                         m.model_name,
                         b.brand_name,
                         cat.category_name,
-                        -- product serial text (if any)
+                        
                         (SELECT p.product_sl FROM product_sl p WHERE p.sl_id = c.product_sl_id_fk LIMIT 1) AS product_sl,
-                        -- warranty: if serialized, follow product_sl.purchase_id_fk -> purchased_products.warranty_period
                         (CASE
                             WHEN c.product_sl_id_fk IS NOT NULL THEN (
                                 SELECT pp.warranty_period
@@ -143,7 +129,6 @@ try {
             send_json(['status' => 'success', 'rows' => $rows]);
             break;
 
-        // --- NEW: Get Work Orders by Client (Head or Branch) ---
         case 'get_client_work_orders':
             $client_mix = $_GET['client_mix'] ?? '';
             $orders = [];
@@ -153,7 +138,6 @@ try {
                 $branch_id = 0;
 
                 if (strpos($client_mix, 'head_') === 0) {
-                    // CASE 1: Client Head Selected
                     $head_id = (int)str_replace('head_', '', $client_mix);
                     
                     $sql = "SELECT work_order_id, Order_No, Order_Date 
@@ -165,10 +149,8 @@ try {
                     $stmt->bind_param("i", $head_id);
 
                 } else {
-                    // CASE 2: Client Branch Selected
                     $branch_id = (int)$client_mix;
                     
-                    // 2a. Find the parent Head ID for this branch
                     $stmt_h = $conn->prepare("SELECT client_head_id_fk FROM client_branch WHERE client_branch_id = ?");
                     $stmt_h->bind_param("i", $branch_id);
                     $stmt_h->execute();
@@ -178,7 +160,6 @@ try {
                     }
                     $stmt_h->close();
 
-                    // 2b. Fetch WOs for THIS Branch OR the Parent Head
                     $sql = "SELECT work_order_id, Order_No, Order_Date 
                             FROM work_order 
                             WHERE (client_branch_id_fk = ? OR client_head_id_fk = ?) 
@@ -198,7 +179,6 @@ try {
             break;
 
 
-        // --- add to cart (serial or bulk) ---
         case 'add_to_cart':
             if ($method !== 'POST') send_json(['status' => 'error', 'message' => 'Invalid request method']);
             $data = $_POST;
@@ -210,35 +190,28 @@ try {
                 throw new Exception("Invalid model or price.");
             }
 
-            // Normalize serial IDs (may be array or single value)
             $product_sl_ids = $data['product_sl_id_fk'] ?? null;
             if (!is_null($product_sl_ids) && !is_array($product_sl_ids)) {
                 $product_sl_ids = [$product_sl_ids];
             }
 
-            // Start transaction
             $conn->begin_transaction();
             $inTransaction = true;
 
-            // Prepare statements:
-            // 1) Insert serial item (quantity = 1)
             $sql_insert_serial = "INSERT INTO cart (model_id_fk, product_sl_id_fk, quantity, sale_price, user_id_fk)
                                   VALUES (?, ?, 1, ?, ?)";
             $stmt_insert_serial = $conn->prepare($sql_insert_serial);
 
-            // 2) Insert bulk item (product_sl_id_fk = NULL)
             $sql_insert_bulk = "INSERT INTO cart (model_id_fk, product_sl_id_fk, quantity, sale_price, user_id_fk)
                                 VALUES (?, NULL, ?, ?, ?)";
             $stmt_insert_bulk = $conn->prepare($sql_insert_bulk);
 
-            // 3) Reserve serial via status (product_sl.status)
             $sql_update_sl_reserve = "UPDATE product_sl SET status = 1 WHERE sl_id = ? AND status = 0";
             $stmt_update_sl_reserve = $conn->prepare($sql_update_sl_reserve);
 
             $message = '';
 
             if (is_array($product_sl_ids) && count($product_sl_ids) > 0) {
-                // Serial path
                 $added = 0;
                 foreach ($product_sl_ids as $raw) {
                     $serial_id = (int)$raw;
@@ -246,7 +219,6 @@ try {
                         throw new Exception("Invalid serial id provided.");
                     }
 
-                    // Ensure serial not already present in cart
                     $chk = $conn->prepare("SELECT 1 FROM cart WHERE product_sl_id_fk = ? LIMIT 1");
                     $chk->bind_param("i", $serial_id);
                     $chk->execute();
@@ -256,14 +228,12 @@ try {
                         throw new Exception("Serial #{$serial_id} is already reserved in a cart.");
                     }
 
-                    // Reserve the serial (concurrency-safe)
                     $stmt_update_sl_reserve->bind_param("i", $serial_id);
                     $stmt_update_sl_reserve->execute();
                     if ($stmt_update_sl_reserve->affected_rows === 0) {
                         throw new Exception("Serial #{$serial_id} is no longer available.");
                     }
 
-                    // Insert into cart
                     $stmt_insert_serial->bind_param("iidi", $model_id_fk, $serial_id, $unit_price, $current_user_id);
                     $stmt_insert_serial->execute();
 
@@ -271,18 +241,15 @@ try {
                 }
                 $message = "Added {$added} serial item(s) to cart.";
 
-                // close statements used
                 $stmt_insert_serial->close();
                 $stmt_update_sl_reserve->close();
                 $stmt_insert_bulk->close();
             } else {
-                // Bulk path
                 $quantity = isset($data['Quantity']) ? (int)$data['Quantity'] : 0;
                 if ($quantity <= 0) {
                     throw new Exception("Quantity must be greater than 0.");
                 }
 
-                // Stock check (purchased_products.model_id per schema)
                 $sql_check = "SELECT
                                 COALESCE((SELECT SUM(quantity) FROM purchased_products WHERE model_id = ? AND is_deleted = 0), 0)
                                 -
@@ -301,24 +268,20 @@ try {
                     throw new Exception("Stock check failed: Quantity ({$quantity}) exceeds available stock ({$available}).");
                 }
 
-                // Insert bulk with NULL product_sl_id_fk
                 $stmt_insert_bulk->bind_param("iidi", $model_id_fk, $quantity, $unit_price, $current_user_id);
                 $stmt_insert_bulk->execute();
                 $message = "Added {$quantity} item(s) to cart.";
 
-                // close statements used
                 $stmt_insert_bulk->close();
                 $stmt_insert_serial->close();
                 $stmt_update_sl_reserve->close();
             }
 
-            // commit
             $conn->commit();
             $inTransaction = false;
             send_json(['status' => 'success', 'message' => $message]);
             break;
 
-        // --- remove from cart ---
         case 'remove_from_cart':
             if ($method !== 'POST') send_json(['status' => 'error', 'message' => 'Invalid request method']);
             $cart_id = (int)($_POST['cart_id'] ?? 0);
@@ -327,7 +290,6 @@ try {
             $conn->begin_transaction();
             $inTransaction = true;
 
-            // Find product_sl_id_fk for this item and verify user
             $stmt_get = $conn->prepare("SELECT product_sl_id_fk FROM cart WHERE cart_id = ? AND user_id_fk = ?");
             $stmt_get->bind_param("ii", $cart_id, $current_user_id);
             $stmt_get->execute();
@@ -336,7 +298,6 @@ try {
 
             $serial_id = $row['product_sl_id_fk'] ?? null;
 
-            // Delete the cart item
             $stmt_del = $conn->prepare("DELETE FROM cart WHERE cart_id = ? AND user_id_fk = ?");
             $stmt_del->bind_param("ii", $cart_id, $current_user_id);
             $stmt_del->execute();
@@ -344,7 +305,6 @@ try {
             $stmt_del->close();
 
             if ($affected > 0 && $serial_id) {
-                // Unreserve serial (set status back to 0)
                 $stmt_unreserve = $conn->prepare("UPDATE product_sl SET status = 0 WHERE sl_id = ?");
                 $stmt_unreserve->bind_param("i", $serial_id);
                 $stmt_unreserve->execute();
@@ -374,12 +334,8 @@ try {
     send_json(['status' => 'error', 'message' => $e->getMessage()]);
 }
 
-// close connection
 $conn->close();
 
-/**
- * Helper: send JSON and exit
- */
 function send_json($data) {
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
