@@ -1,24 +1,22 @@
 <?php
-ob_start(); // Prevents redirect issues
+ob_start(); 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Standard session guard include
 require_once 'session_guard.php';
 
 $current_user_id = $_SESSION['user_id'];
-$idleTimeout = 1800; // Define variable if not in session_guard to prevent JS errors
+$idleTimeout = 1800; 
 
-// --- FLASH MESSAGE HANDLING ---
+
 $successMessage = $_SESSION['successMessage'] ?? '';
 $errorMessage = $_SESSION['errorMessage'] ?? '';
 unset($_SESSION['successMessage'], $_SESSION['errorMessage']);
 
 require_once 'connection.php';
-// Disable Strict Mode for compatibility with older SQL logic
+
 $conn->query("SET sql_mode=''");
 
-// --- Handle Form Submission (POST) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $order_no = trim($_POST['order_no']);
     $order_date = $_POST['order_date'];
@@ -39,7 +37,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($order_no) || empty($order_date) || (empty($client_head_id_fk) && empty($client_branch_id_fk))) {
         $_SESSION['errorMessage'] = "Please provide an Order No, Order Date, and select a Client.";
     } else {
-        // Table and Column names must match ams (36).sql exactly
         $sql = "INSERT INTO work_order (Order_No, Order_Date, client_head_id_fk, client_branch_id_fk, created_by) 
                 VALUES (?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
@@ -62,8 +59,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     exit();
 }
 
-// --- Fetch data for page load ---
-// Fix: Updated table and column names to match your SQL schema exactly
 $client_list_sql = "
     (SELECT client_head_id as id, Company_Name as name, 'Head Office' as type, 'head' as type_key FROM client_head WHERE is_deleted = FALSE)
     UNION ALL
@@ -77,7 +72,6 @@ $client_list_sql = "
 $result = $conn->query($client_list_sql);
 
 if (!$result) {
-    // Debugging line: if this fails, it will tell you the exact SQL error
     die("Database Query Failed: " . $conn->error);
 }
 
