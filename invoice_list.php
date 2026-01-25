@@ -5,10 +5,8 @@ $current_user_id = $_SESSION['user_id'];
 
 require_once 'connection.php';
 
-// --- Initialize Search ---
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// --- Fetch Invoices ---
 $sql = "SELECT 
             inv.invoice_id,
             inv.Invoice_No,
@@ -188,7 +186,6 @@ if (!empty($search)) {
     </div>
 
     <script>
-        // --- 1. MODAL LOGIC ---
         function openInvoiceModal(invoiceId, invoiceNo) {
             const modal = document.getElementById('invoiceModal');
             const content = document.getElementById('modalContent');
@@ -196,7 +193,6 @@ if (!empty($search)) {
             
             $(modal).fadeIn(200);
             
-            // Pass the invoiceNo to the print function from within the modal
             printBtn.onclick = function() {
                 printInvoiceDirect(invoiceId, invoiceNo);
             };
@@ -226,15 +222,13 @@ if (!empty($search)) {
             }
         });
 
-        // --- 2. DIRECT PRINT FUNCTION WITH FILENAME ---
         function printInvoiceDirect(invoiceId, invoiceNo) {
-            // Remove existing frame
+
             var existingFrame = document.getElementById('printFrame');
             if (existingFrame) {
                 document.body.removeChild(existingFrame);
             }
 
-            // Create invisible iframe
             var iframe = document.createElement('iframe');
             iframe.id = 'printFrame';
             iframe.style.position = 'fixed';
@@ -255,15 +249,14 @@ if (!empty($search)) {
             document.body.appendChild(iframe);
         }
 
-        // --- 3. DELIVERY CHALLAN PRINT FUNCTION ---
         function printChallanDirect(invoiceId, invoiceNo) {
-            // Remove existing frame
+
             var existingFrame = document.getElementById('printFrame');
             if (existingFrame) {
                 document.body.removeChild(existingFrame);
             }
 
-            // Create invisible iframe
+
             var iframe = document.createElement('iframe');
             iframe.id = 'printFrame';
             iframe.style.position = 'fixed';
@@ -273,12 +266,10 @@ if (!empty($search)) {
             iframe.style.height = '0';
             iframe.style.border = '0';
             
-            // Point to delivery_challan.php
             iframe.src = 'delivery_challan.php?id=' + invoiceId + '&print=true';
 
             iframe.onload = function() {
                 if(iframe.contentDocument) {
-                    // Title for Challan PDF save
                     iframe.contentDocument.title = "DC-" + invoiceNo;
                 }
             };
