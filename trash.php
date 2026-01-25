@@ -1,19 +1,17 @@
 <?php
 require_once 'session_guard.php';
 
-// Get user role from session
 $current_user_id = $_SESSION['user_id'];
 $user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
-// --- END: SESSION & SECURITY CHECKS ---
+
 
 require_once 'connection.php';
 
-// --- Part 1: API Request Handler (AJAX) ---
+
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $response = ['status' => 'error', 'message' => 'Invalid request'];
 
-    // Action: Get details for a single product (works for deleted items too)
     if ($_GET['action'] === 'get_product_details' && isset($_GET['id'])) {
         $purchase_id = intval($_GET['id']);
         
@@ -46,7 +44,6 @@ if (isset($_GET['action'])) {
         $stmt->close();
     }
 
-    // Action: Restore a product (sets is_deleted to FALSE)
     if ($_GET['action'] === 'restore_product' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
         $sql = "UPDATE purchased_products SET is_deleted = FALSE, is_updated = TRUE WHERE purchase_id = ?";
@@ -59,9 +56,8 @@ if (isset($_GET['action'])) {
         }
     }
 
-    // --- NEW ACTION: PERMANENT DELETE (Admin Only) ---
     if ($_GET['action'] === 'permanent_delete_product' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-        // Server-side role check
+
         if ($user_role != 1) {
              $response['message'] = 'Access Denied: You do not have permission to perform this action.';
         } else {
@@ -69,7 +65,6 @@ if (isset($_GET['action'])) {
             $purchase_id = intval($data['purchase_id']);
 
             try {
-                // This will also trigger ON DELETE CASCADE for product_sl records
                 $sql = "DELETE FROM purchased_products WHERE purchase_id = ?";
                 $stmt = $conn->prepare($sql);
                 $stmt->bind_param("i", $purchase_id);
@@ -80,7 +75,6 @@ if (isset($_GET['action'])) {
                     $response['message'] = 'Database delete error: ' . $stmt->error;
                 }
             } catch (mysqli_sql_exception $e) {
-                 // Catch Foreign Key constraint violations (e.g., if a return record points to a serial)
                 if ($e->getCode() == 1451) {
                     $response['message'] = 'Cannot delete: This product has associated records (like returns) that must be handled first.';
                 } else {
@@ -95,9 +89,7 @@ if (isset($_GET['action'])) {
     exit();
 }
 
-// --- Part 2: Fetch initial data for page load ---
 header('Content-Type: text/html');
-// THE KEY CHANGE IS HERE: is_deleted = TRUE
 $products_sql = "SELECT pp.purchase_id, pp.quantity, pp.unit_price, pp.invoice_number, 
                         v.vendor_name, c.category_name, b.brand_name, m.model_name
                  FROM purchased_products pp
@@ -169,10 +161,10 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Modals -->
+
     <div id="view-details-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4"><div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col"><div class="p-4 border-b flex justify-between items-center"><h2 class="text-xl font-semibold">Product Details</h2><button class="close-modal-btn text-2xl font-bold">&times;</button></div><div id="view-modal-body" class="p-6 space-y-4 text-sm overflow-y-auto"></div><div class="p-4 bg-gray-50 border-t text-right"><button class="close-modal-btn bg-gray-300 px-4 py-2 rounded-lg">Close</button></div></div></div>
     <div id="restore-confirm-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4"><div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center"><h2 class="text-xl font-bold mb-4">Confirm Restore</h2><p class="mb-6">Are you sure you want to restore this product to the main inventory?</p><input type="hidden" id="restore-purchase-id"><div class="flex justify-center gap-4"><button class="close-modal-btn bg-gray-300 px-6 py-2 rounded-lg">Cancel</button><button id="restore-confirm-btn" class="bg-green-600 text-white font-bold px-6 py-2 rounded-lg">Confirm Restore</button></div></div></div>
-    <!-- New Permanent Delete Modal -->
+
     <div id="permanent-delete-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50 p-4"><div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center"><h2 class="text-xl font-bold mb-4 text-red-700">Confirm Permanent Deletion</h2><p class="mb-6">Are you absolutely sure? This action is irreversible and will permanently delete the product and all associated serial numbers.</p><input type="hidden" id="permanent-delete-id"><div class="flex justify-center gap-4"><button class="close-modal-btn bg-gray-300 px-6 py-2 rounded-lg">Cancel</button><button id="permanent-delete-confirm-btn" class="bg-red-700 text-white font-bold px-6 py-2 rounded-lg">Delete Permanently</button></div></div></div>
 
 
@@ -201,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = row.dataset.id;
         
         if (e.target.closest('.action-btn')) {
-            e.stopPropagation(); // Stop click from bubbling to the row
+            e.stopPropagation();
             const button = e.target.closest('.action-btn');
             
             if (button.classList.contains('restore-btn')) {
