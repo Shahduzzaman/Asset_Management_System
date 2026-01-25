@@ -3,9 +3,8 @@ require_once 'session_guard.php';
 
 $user_id = (int)$_SESSION['user_id'];
 
-require_once 'connection.php'; // expects $conn (mysqli)
+require_once 'connection.php';
 
-// --- helper ---
 function bail($msg) {
     echo "<div class='alert alert-danger'>{$msg}</div>";
     exit();
@@ -19,7 +18,6 @@ function is_admin() {
 $user_id = (int)$_SESSION['user_id'];
 $user_role = isset($_SESSION['role']) ? (int)$_SESSION['role'] : 0;
 
-// --- Handle delete POST (secure-ish) ---
 $deleteMessage = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_return_id'])) {
     if (!is_admin()) {
@@ -37,8 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_return_id'])) 
     }
 }
 
-// --- Fetch all purchase_return rows to display (joins)
-// Note: we join purchased_products (pp) using product_sl.purchase_id_fk to retrieve unit_price as purchased_price
 $sql = "SELECT pr.purchase_return_id, pr.vendor_id_fk, v.vendor_name,
                pr.returned_product_sl_id_fk, rp.product_sl AS returned_serial,
                rp.model_id_fk AS returned_model_id,
@@ -50,7 +46,6 @@ $sql = "SELECT pr.purchase_return_id, pr.vendor_id_fk, v.vendor_name,
         LEFT JOIN product_sl rp ON rp.sl_id = pr.returned_product_sl_id_fk
         LEFT JOIN product_sl repl ON repl.sl_id = pr.replacement_product_sl_id_fk
         LEFT JOIN models m_return ON m_return.model_id = rp.model_id_fk
-        -- join purchased_products to get purchased price (may return multiple rows; typically one)
         LEFT JOIN purchased_products pp ON pp.purchase_id = rp.purchase_id_fk
         ORDER BY pr.return_date DESC";
 
@@ -66,10 +61,8 @@ if ($result === false) {
     <meta charset="utf-8">
     <title>Purchase Return List</title>
 
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <!-- DataTables CSS & JS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css"/>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -111,10 +104,8 @@ if ($result === false) {
                     </thead>
                     <tbody>
                     <?php $i=1; while ($row = $result->fetch_assoc()): 
-                        // Attempt to fetch purchased_price for this product_sl (from purchased_products)
                         $purchased_price = null;
                         if (!empty($row['returned_product_sl_id_fk'])) {
-                            // Query purchased_products.unit_price using product_sl.purchase_id_fk
                             $sqlpp = "SELECT pp.unit_price 
                                       FROM product_sl psl
                                       LEFT JOIN purchased_products pp ON pp.purchase_id = psl.purchase_id_fk
@@ -169,7 +160,7 @@ if ($result === false) {
     </div>
 </div>
 
-<!-- Details Modal -->
+
 <div class="modal fade" id="returnModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -211,23 +202,20 @@ if ($result === false) {
   </div>
 </div>
 
-<!-- Bootstrap JS (requires Popper) -->
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
 
 <script>
 $(document).ready(function(){
-    // Initialize DataTable
     $('#returnsTable').DataTable({
         "pageLength": 25,
         "lengthMenu": [10,25,50,100],
-        "order": [[7, "desc"]], // order by return_date column (0-based index; return_date is column 7)
+        "order": [[7, "desc"]],
         columnDefs: [
-            { orderable: false, targets: [8] } // actions column not orderable (index changed after removing Created By)
+            { orderable: false, targets: [8] }
         ]
     });
 
-    // View button handler
     var returnModal = new bootstrap.Modal(document.getElementById('returnModal'));
     $(document).on('click', '.viewBtn', function(){
         $('#mdVendor').text($(this).data('vendor') || '—');
